@@ -1,14 +1,14 @@
 /**@file
  * This file is part of the ARM BSP for the Test Environment.
  *
- * @copyright 2020-2021 N7 Space Sp. z o.o.
+ * @copyright 2018-2024 N7 Space Sp. z o.o.
  *
  * Test Environment was developed under a programme of,
  * and funded by, the European Space Agency (the "ESA").
  *
  *
- * Licensed under the ESA Public License (ESA-PL) Permissive,
- * Version 2.3 (the "License");
+ * Licensed under the ESA Public License (ESA-PL) Permissive (Type 3),
+ * Version 2.4 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
@@ -21,13 +21,9 @@
  * limitations under the License.
  */
 
-/// \brief Header for the Extensible DMA Controller (TIC) driver.
-
-/**
- * @defgroup Tic Tic
- * @ingroup Bsp
- * @{
- */
+/// \file Tic.h
+/// \addtogroup Bsp
+/// \brief Header for the Timer Controller - TC (TIC) driver.
 
 #ifndef BSP_TIC_H
 #define BSP_TIC_H
@@ -37,12 +33,22 @@
 
 #include "TicRegisters.h"
 
+/// @addtogroup Tic
+/// @ingroup Bsp
+/// @{
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /// \brief Enumeration listing Tic instances.
 typedef enum {
 	Tic_Id_0 = 0, ///< TIC instance 0.
 	Tic_Id_1 = 1, ///< TIC instance 1.
 	Tic_Id_2 = 2, ///< TIC instance 2.
+#if defined(N7S_TARGET_SAMV71Q21) || defined(N7S_TARGET_SAMRH71F20)
 	Tic_Id_3 = 3, ///< TIC instance 3.
+#endif
 } Tic_Id;
 
 /// \brief Enumeration listing Tic channels.
@@ -55,7 +61,13 @@ typedef enum {
 
 /// \brief Enumeration listing Tic clock sources.
 typedef enum {
+#if defined(N7S_TARGET_SAMV71Q21)
 	Tic_ClockSelection_Pck6 = 0, ///< Pck6.
+#elif defined(N7S_TARGET_SAMRH71F20) || defined(N7S_TARGET_SAMRH707F18)
+	Tic_ClockSelection_Gclk = 0, ///< Gclk.
+#else
+#error "No target platform specified (missing N7S_TARGET_* macro)"
+#endif
 	Tic_ClockSelection_MckBy8 = 1, ///< Mck / 8.
 	Tic_ClockSelection_MckBy32 = 2, ///< Mck / 32.
 	Tic_ClockSelection_MckBy128 = 3, ///< Mck / 128.
@@ -83,8 +95,8 @@ typedef enum {
 
 /// \brief Enumeration listing possible signal trigger selection values.
 typedef enum {
-	Tic_SignalTriggerSelection_Tioa = 0, ///< Trigger selection TIOAx
-	Tic_SignalTriggerSelection_Tiob = 1, ///< Trigger selection TIOB
+	Tic_SignalTriggerSelection_Tiob = 0, ///< Trigger selection TIOBx
+	Tic_SignalTriggerSelection_Tioa = 1, ///< Trigger selection TIOAx
 } Tic_SignalTriggerSelection;
 
 /// \brief Enumeration listing subsampling ratios.
@@ -239,12 +251,14 @@ typedef struct {
 	bool isClockInverted; ///< Is clock inverted.
 	Tic_BurstSelection burst; ///< Burst selection.
 	Tic_Mode channelMode; ///< Channel mode.
+
 	struct {
 		Tic_CaptureModeConfig
 				captureModeConfig; ///< Capture mode config.
 		Tic_WaveformModeConfig
 				waveformModeConfig; ///< Waveform mode config.
 	} modeConfig; ///< Mode configurations.
+
 	bool isGrayCounterEnabled; ///< Is gray counter enabled.
 	bool doesGrayCounterCountDown; ///< Does gray counter count down.
 	Tic_ChannelIrqConfig irqConfig; ///< Interrupt configuration.
@@ -256,7 +270,7 @@ typedef struct {
 	uint32_t rc; ///< RC value for comparisons.
 } Tic_ChannelConfig;
 
-/// \brief Structure desribing Tic channel status.
+/// \brief Structure describing Tic channel status.
 typedef struct {
 	bool hasCounterOverflowed; ///< Has counter overflow occurred.
 	bool hasLoadOverrunOccurred; ///< Has load overrun occurred.
@@ -277,37 +291,33 @@ typedef struct {
 	Tic_Id ticId;
 	/// \brief Pointer to Tic registers.
 	volatile Tic_Registers *regs;
-	/// \brief External clock signal selection.
-	Tic_ExternalClockSignalSelection externalClockSignals;
-	/// \brief Is Tic write protected.
-	bool isWriteProtected;
 } Tic;
 
 /// \brief Initializes Tic instance.
 /// \param [in,out] tic Pointer to Tic instance.
 /// \param [in] id Instance ID.
-void Tic_init(Tic *const tic, Tic_Id const id);
+void Tic_init(Tic *const tic, const Tic_Id id);
 
 /// \brief Enable channel.
 /// \param [in] tic Pointer to Tic instance.
 /// \param [in] channel Channel to be enabled.
-void Tic_enableChannel(Tic *const tic, Tic_Channel const channel);
+void Tic_enableChannel(Tic *const tic, const Tic_Channel channel);
 
 /// \brief Disable channel.
 /// \param [in] tic Pointer to Tic instance.
 /// \param [in] channel Channel to be disabled.
-void Tic_disableChannel(Tic *const tic, Tic_Channel const channel);
+void Tic_disableChannel(Tic *const tic, const Tic_Channel channel);
 
 /// \brief Is channel enabled.
 /// \param [in] tic Pointer to Tic instance.
 /// \param [in] channel Channel to be queried.
 /// \returns Whether the channel is enabled.
-bool Tic_isChannelEnabled(const Tic *const tic, Tic_Channel const channel);
+bool Tic_isChannelEnabled(const Tic *const tic, const Tic_Channel channel);
 
 /// \brief Trigger channel.
 /// \param [in] tic Pointer to Tic instance.
 /// \param [in] channel Channel to be triggered.
-void Tic_triggerChannel(Tic *const tic, Tic_Channel const channel);
+void Tic_triggerChannel(Tic *const tic, const Tic_Channel channel);
 
 /// \brief Synchronize all channels.
 /// \param [in] tic Pointer to Tic instance.
@@ -317,28 +327,28 @@ void Tic_syncAllChannels(Tic *const tic);
 /// \param [in] tic Pointer to Tic instance.
 /// \param [in] channel Channel to be configured.
 /// \param [in] config Channel configuration.
-void Tic_setChannelConfig(Tic *const tic, Tic_Channel const channel,
+void Tic_setChannelConfig(Tic *const tic, const Tic_Channel channel,
 		const Tic_ChannelConfig *const config);
 
 /// \brief Get channel configuration.
 /// \param [in] tic Pointer to Tic instance.
 /// \param [in] channel Channel to be queried.
 /// \param [out] config Channel configuration.
-void Tic_getChannelConfig(const Tic *const tic, Tic_Channel const channel,
+void Tic_getChannelConfig(const Tic *const tic, const Tic_Channel channel,
 		Tic_ChannelConfig *const config);
 
 /// \brief Set channel interrupt configuration.
 /// \param [in] tic Pointer to Tic instance.
 /// \param [in] channel Channel to be configured.
 /// \param [in] config Channel interrupt configuration.
-void Tic_setChannelIrqConfig(Tic *const tic, Tic_Channel const channel,
-		Tic_ChannelIrqConfig const config);
+void Tic_setChannelIrqConfig(Tic *const tic, const Tic_Channel channel,
+		const Tic_ChannelIrqConfig *const config);
 
 /// \brief Get channel interrupt configuration.
 /// \param [in] tic Pointer to Tic instance.
 /// \param [in] channel Channel to queried.
 /// \param [out] config Channel interrupt configuration.
-void Tic_getChannelIrqConfig(const Tic *const tic, Tic_Channel const channel,
+void Tic_getChannelIrqConfig(const Tic *const tic, const Tic_Channel channel,
 		Tic_ChannelIrqConfig *const config);
 
 /// \brief Enable channel interrupt.
@@ -346,55 +356,58 @@ void Tic_getChannelIrqConfig(const Tic *const tic, Tic_Channel const channel,
 /// \param [in] channel Channel to be configured.
 /// \param [in] irq Interrupt to be enabled.
 void Tic_enableChannelIrq(
-		Tic *const tic, Tic_Channel const channel, Tic_Irq const irq);
+		Tic *const tic, const Tic_Channel channel, const Tic_Irq irq);
 
 /// \brief Disable channel interrupt.
 /// \param [in] tic Pointer to Tic instance.
 /// \param [in] channel Channel to be configured.
 /// \param [in] irq Interrupt to be disabled.
 void Tic_disableChannelIrq(
-		Tic *const tic, Tic_Channel const channel, Tic_Irq const irq);
+		Tic *const tic, const Tic_Channel channel, const Tic_Irq irq);
 
 /// \brief Is channel interrupt enabled.
 /// \param [in] tic Pointer to Tic instance.
 /// \param [in] channel Channel to be queried.
 /// \param [in] irq Interrupt to be queried.
 /// \returns Whether the given interrupt is enabled.
-bool Tic_isChannelIrqEnabled(const Tic *const tic, Tic_Channel const channel,
-		Tic_Irq const irq);
+bool Tic_isChannelIrqEnabled(const Tic *const tic, const Tic_Channel channel,
+		const Tic_Irq irq);
 
 /// \brief Get channel status.
 /// \param [in] tic Pointer to Tic instance.
 /// \param [in] channel Channel to be queried.
 /// \param [out] status Channel status.
-void Tic_getChannelStatus(const Tic *const tic, Tic_Channel const channel,
+void Tic_getChannelStatus(const Tic *const tic, const Tic_Channel channel,
 		Tic_ChannelStatus *const status);
 
 /// \brief Get counter value.
 /// \param [in] tic Pointer to Tic instance.
 /// \param [in] channel Channel to be queried.
 /// \returns Counter value.
-uint32_t Tic_getCounterValue(const Tic *const tic, Tic_Channel const channel);
+uint32_t Tic_getCounterValue(const Tic *const tic, const Tic_Channel channel);
 
 /// \brief Set external clock signals configuration.
 /// \param [in] tic Pointer to Tic instance.
-/// \param [in] externalClockSignals External clock signals configurtion.
+/// \param [in] externalClockSignals External clock signals configuration.
 void Tic_configureExternalClockSignals(Tic *const tic,
-		Tic_ExternalClockSignalSelection const externalClockSignals);
+		const Tic_ExternalClockSignalSelection
+				*const externalClockSignals);
 
 /// \brief Set Tic write protection.
 /// \param [in] tic Pointer to Tic instance.
 /// \param [in] protect Whether Tic is to be write protected.
 void Tic_writeProtect(Tic *const tic, bool protect);
 
-/// \brief Gets RA value for the given channel (intended for use in capture
-/// mode). \param [in] tic Pointer to Tic instance. \param [in] channel Channel
-/// to be queried. \returns The current RA value.
+/// \brief Gets RA value for the given channel (intended for use in capture mode).
+/// \param [in] tic Pointer to Tic instance.
+/// \param [in] channel Channel to be queried.
+/// \returns The current RA value.
 uint32_t Tic_getRaValue(const Tic *const tic, const Tic_Channel channel);
 
-/// \brief Gets RB value for the given channel (intended for use in capture
-/// mode). \param [in] tic Pointer to Tic instance. \param [in] channel Channel
-/// to be queried. \returns The current RB value.
+/// \brief Gets RB value for the given channel (intended for use in capture mode).
+/// \param [in] tic Pointer to Tic instance.
+/// \param [in] channel Channel to be queried.
+/// \returns The current RB value.
 uint32_t Tic_getRbValue(const Tic *const tic, const Tic_Channel channel);
 
 /// \brief Gets RC value for the given channel.
@@ -403,6 +416,10 @@ uint32_t Tic_getRbValue(const Tic *const tic, const Tic_Channel channel);
 /// \returns The current RC value.
 uint32_t Tic_getRcValue(const Tic *const tic, const Tic_Channel channel);
 
-#endif // BSP_TIC_H
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
-/** @} */
+/// @}
+
+#endif // BSP_TIC_H

@@ -1,14 +1,14 @@
 /**@file
  * This file is part of the ARM BSP for the Test Environment.
  *
- * @copyright 2020-2021 N7 Space Sp. z o.o.
+ * @copyright 2018-2025 N7 Space Sp. z o.o.
  *
  * Test Environment was developed under a programme of,
  * and funded by, the European Space Agency (the "ESA").
  *
  *
- * Licensed under the ESA Public License (ESA-PL) Permissive,
- * Version 2.3 (the "License");
+ * Licensed under the ESA Public License (ESA-PL) Permissive (Type 3),
+ * Version 2.4 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *

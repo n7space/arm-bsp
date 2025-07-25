@@ -1,14 +1,14 @@
 /**@file
  * This file is part of the ARM BSP for the Test Environment.
  *
- * @copyright 2020-2021 N7 Space Sp. z o.o.
+ * @copyright 2018-2024 N7 Space Sp. z o.o.
  *
  * Test Environment was developed under a programme of,
  * and funded by, the European Space Agency (the "ESA").
  *
  *
- * Licensed under the ESA Public License (ESA-PL) Permissive,
- * Version 2.3 (the "License");
+ * Licensed under the ESA Public License (ESA-PL) Permissive (Type 3),
+ * Version 2.4 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
@@ -26,6 +26,7 @@
 
 /// \brief Enumeration used to select the peripheral during Pmc operations.
 typedef enum {
+#if defined(N7S_TARGET_SAMV71Q21)
 	Pmc_PeripheralId_Uart0 = 7,
 	Pmc_PeripheralId_Uart1 = 8,
 	Pmc_PeripheralId_Smc = 9,
@@ -77,6 +78,89 @@ typedef enum {
 	Pmc_PeripheralId_Isi = 59,
 	Pmc_PeripheralId_Pwm1 = 60,
 	Pmc_PeripheralId_Sdramc = 62,
+	Pmc_PeripheralCount = 128,
+#elif defined(N7S_TARGET_SAMRH71F20)
+	Pmc_PeripheralId_Flexcom0 = 7,
+	Pmc_PeripheralId_Flexcom1 = 8,
+	Pmc_PeripheralId_PioA = 10,
+	Pmc_PeripheralId_Flexcom2 = 13,
+	Pmc_PeripheralId_Flexcom3 = 14,
+	Pmc_PeripheralId_Flexcom4 = 15,
+	Pmc_PeripheralId_Flexcom5 = 22,
+	Pmc_PeripheralId_Flexcom6 = 23,
+	Pmc_PeripheralId_Flexcom7 = 24,
+	Pmc_PeripheralId_Tc0Ch0 = 25,
+	Pmc_PeripheralId_Tc0Ch1 = 26,
+	Pmc_PeripheralId_Tc0Ch2 = 27,
+	Pmc_PeripheralId_Tc1Ch0 = 28,
+	Pmc_PeripheralId_Tc1Ch1 = 29,
+	Pmc_PeripheralId_Tc1Ch2 = 30,
+	Pmc_PeripheralId_Pwm0 = 31,
+	Pmc_PeripheralId_Pwm1 = 32,
+	Pmc_PeripheralId_Icm = 33,
+	Pmc_PeripheralId_Mcan0 = 36,
+	Pmc_PeripheralId_Mcan1 = 38,
+	Pmc_PeripheralId_Sha = 44,
+	Pmc_PeripheralId_Flexcom8 = 45,
+	Pmc_PeripheralId_Flexcom9 = 46,
+	Pmc_PeripheralId_Qspi = 49,
+	Pmc_PeripheralId_Hefc = 50,
+	Pmc_PeripheralId_Hefc_Fix = 51,
+	Pmc_PeripheralId_Hefc_NoFix = 52,
+	Pmc_PeripheralId_Tc2Ch0 = 53,
+	Pmc_PeripheralId_Tc2Ch1 = 54,
+	Pmc_PeripheralId_Tc2Ch2 = 55,
+	Pmc_PeripheralId_Tc3Ch0 = 56,
+	Pmc_PeripheralId_Tc3Ch1 = 57,
+	Pmc_PeripheralId_Tc3Ch2 = 58,
+	Pmc_PeripheralId_Hemc = 59,
+	Pmc_PeripheralId_Hemc_Fix = 60,
+	Pmc_PeripheralId_Hemc_NoFix = 61,
+	Pmc_PeripheralId_Sfr = 62,
+	Pmc_PeripheralId_Trng = 63,
+	Pmc_PeripheralId_Xdmac = 64,
+	Pmc_PeripheralId_Spw0 = 65,
+	Pmc_PeripheralId_Spw1 = 66,
+	Pmc_PeripheralId_Ip1553 = 68,
+	Pmc_PeripheralId_Gmac = 69,
+	Pmc_PeripheralCount = 128,
+#elif defined(N7S_TARGET_SAMRH707F18)
+	Pmc_PeripheralId_Flexcom0 = 7,
+	Pmc_PeripheralId_Flexcom1 = 8,
+	Pmc_PeripheralId_PioA = 10,
+	Pmc_PeripheralId_Flexcom2 = 13,
+	Pmc_PeripheralId_Flexcom3 = 14,
+	Pmc_PeripheralId_CrcCu = 22,
+	Pmc_PeripheralId_Dac = 24,
+	Pmc_PeripheralId_Tc0Ch0 = 25,
+	Pmc_PeripheralId_Tc0Ch1 = 26,
+	Pmc_PeripheralId_Tc0Ch2 = 27,
+	Pmc_PeripheralId_Tc1Ch0 = 28,
+	Pmc_PeripheralId_Tc1Ch1 = 29,
+	Pmc_PeripheralId_Tc1Ch2 = 30,
+	Pmc_PeripheralId_Pwm0 = 31,
+	Pmc_PeripheralId_Pwm1 = 32,
+	Pmc_PeripheralId_Icm = 33,
+	Pmc_PeripheralId_Mcan0 = 36,
+	Pmc_PeripheralId_Mcan1 = 38,
+	Pmc_PeripheralId_Sha = 44,
+	Pmc_PeripheralId_Pcc = 45,
+	Pmc_PeripheralId_Hefc = 50,
+	Pmc_PeripheralId_Tc2Ch0 = 53,
+	Pmc_PeripheralId_Tc2Ch1 = 54,
+	Pmc_PeripheralId_Tc2Ch2 = 55,
+	Pmc_PeripheralId_Hemc = 59,
+	Pmc_PeripheralId_Hemc_Fix = 60,
+	Pmc_PeripheralId_Hemc_NoFix = 61,
+	Pmc_PeripheralId_Trng = 63,
+	Pmc_PeripheralId_Xdmac = 64,
+	Pmc_PeripheralId_Spw0 = 65,
+	Pmc_PeripheralId_Spw1 = 66,
+	Pmc_PeripheralId_Ip1553 = 68,
+	Pmc_PeripheralCount = 80,
+#else
+#error "No target platform specified (missing N7S_TARGET_* macro)"
+#endif
 } Pmc_PeripheralId;
 
 #endif // BSP_PMC_PERIPHERALID_H

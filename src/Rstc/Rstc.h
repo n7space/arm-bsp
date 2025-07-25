@@ -1,14 +1,14 @@
 /**@file
  * This file is part of the ARM BSP for the Test Environment.
  *
- * @copyright 2020-2021 N7 Space Sp. z o.o.
+ * @copyright 2018-2024 N7 Space Sp. z o.o.
  *
  * Test Environment was developed under a programme of,
  * and funded by, the European Space Agency (the "ESA").
  *
  *
- * Licensed under the ESA Public License (ESA-PL) Permissive,
- * Version 2.3 (the "License");
+ * Licensed under the ESA Public License (ESA-PL) Permissive (Type 3),
+ * Version 2.4 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
@@ -21,13 +21,9 @@
  * limitations under the License.
  */
 
+/// \file Rstc.h
+/// \addtogroup Bsp
 /// \brief Header for the Reset Controller (RSTC) driver.
-
-/**
- * @defgroup Rstc Rstc
- * @ingroup Bsp
- * @{
- */
 
 #ifndef BSP_RSTC_H
 #define BSP_RSTC_H
@@ -37,9 +33,17 @@
 
 #include "RstcRegisters.h"
 
-/// \brief Enumeration listring possible reset types.
+/// @addtogroup Rstc
+/// @ingroup Bsp
+/// @{
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/// \brief Enumeration listing possible reset types.
 typedef enum {
-	Rstc_ResetType_Powerup = 0, ///< First powerup reset.
+	Rstc_ResetType_Powerup = 0, ///< First power-up reset.
 	Rstc_ResetType_Backup = 1, ///< Return from Backup mode.
 	Rstc_ResetType_Watchdog = 2, ///< Watchdog fault occurred.
 	Rstc_ResetType_Software = 3, ///< Processor reset required by software.
@@ -55,8 +59,7 @@ typedef struct {
 } Rstc_Status;
 
 /// \brief Reads combined Rstc status.
-/// \param [in,out] status Pointer to a structure which will hold the current
-/// status.
+/// \param [in,out] status Pointer to a structure which will hold the current status.
 void Rstc_getStatus(Rstc_Status *const status);
 
 /// \brief Reads Rstc status and returns whether Rstc is busy.
@@ -68,18 +71,22 @@ bool Rstc_isBusy(void);
 Rstc_ResetType Rstc_getLastResetType(void);
 
 /// \brief Causes a system reset.
-__attribute__((noreturn)) void Rstc_resetSystem(void);
-
-/// \brief Triggers an external reset.
-void Rstc_triggerExternalReset(void);
+/// \details ARM recommends to execute memory barrier (DSB) before resetting the system.
+///          Optionally IRQ disable should also be executed. User of this function should take
+///          those recommendation into account when designing reset procedure.
+void Rstc_resetSystem(void);
 
 /// \brief Reads Rstc status and returns whether Nrst transition was detected.
 /// \returns Whether Nrst transition was detected.
 bool Rstc_wasNrstTransitionDetected(void);
 
+#if defined(N7S_TARGET_SAMV71Q21)
+/// \brief Triggers an external reset.
+void Rstc_triggerExternalReset(void);
+
 /// \brief Enables and disables the user reset.
 /// \param [in] enabled Whether the user reset shall be enabled.
-void Rstc_setUserResetEnabled(bool enabled);
+void Rstc_setUserResetEnabled(const bool enabled);
 
 /// \brief Returns whether the user reset is enabled.
 /// \returns Whether the user reset is enabled.
@@ -101,6 +108,24 @@ void Rstc_setExternalResetLength(uint8_t length);
 /// \returns The external reset length.
 uint8_t Rstc_getExternalResetLength(void);
 
-#endif // BSP_RSTC_H
+#elif defined(N7S_TARGET_SAMRH71F20) || defined(N7S_TARGET_SAMRH707F18)
+/// \brief Triggers a peripheral reset.
+/// \param [in] peripheralId Identifier of the peripheral to be reset.
+void Rstc_triggerPeripheralReset(const uint8_t peripheralId);
 
-/** @} */
+/// \brief Sets whether a CPU clock failure will trigger a system reset.
+/// \param [in] enabled Flag indicating whether the failure should trigger a reset.
+void Rstc_setCpuClockFailureResetEnabled(const bool enabled);
+
+/// \brief Sets whether a slow clock crystal failure will trigger a system reset.
+/// \param [in] enabled Flag indicating whether the failure should trigger a reset.
+void Rstc_setSlowClockCrystalFailureResetEnabled(const bool enabled);
+#endif
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
+
+/// @}
+
+#endif // BSP_RSTC_H

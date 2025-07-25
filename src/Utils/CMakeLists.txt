@@ -11,5 +11,5 @@ target_link_libraries(Samv71Utils
     PRIVATE     common_build_options
                 bsp_build_options)
 
-set_target_properties(Samv71Utils PROPERTIES OUTPUT_NAME "utils")
+set_target_properties(Samv71Utils PROPERTIES OUTPUT_NAME "Utils")
 add_library(SAMV71::Utils ALIAS Samv71Utils)

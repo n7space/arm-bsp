@@ -1,14 +1,14 @@
 /**@file
  * This file is part of the ARM BSP for the Test Environment.
  *
- * @copyright 2020-2021 N7 Space Sp. z o.o.
+ * @copyright 2018-2024 N7 Space Sp. z o.o.
  *
  * Test Environment was developed under a programme of,
  * and funded by, the European Space Agency (the "ESA").
  *
  *
- * Licensed under the ESA Public License (ESA-PL) Permissive,
- * Version 2.3 (the "License");
+ * Licensed under the ESA Public License (ESA-PL) Permissive (Type 3),
+ * Version 2.4 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
@@ -21,8 +21,9 @@
  * limitations under the License.
  */
 
-/// \brief Header containing definitions of registers of Extensible DMA
-/// Controller (TIC).
+/// \file TicRegisters.h
+/// \addtogroup Bsp
+/// \brief Header containing definitions of registers of Timer Controller - TC (TIC).
 
 #ifndef BSP_TIC_REGISTERS_H
 #define BSP_TIC_REGISTERS_H
@@ -32,43 +33,54 @@
 
 /// \brief Structure describing TC Channel registers.
 typedef struct {
-	volatile uint32_t ccr; ///< Channel Control Register.
-	volatile uint32_t cmr; ///< Channel Mode Register.
-	volatile uint32_t smmr; ///< Stepper Motor Mode Register.
-	volatile uint32_t rab; ///< Register AB.
-	volatile uint32_t cv; ///< Counter Value Register.
-	volatile uint32_t ra; ///< Register A.
-	volatile uint32_t rb; ///< Register B.
-	volatile uint32_t rc; ///< Register C.
-	volatile uint32_t sr; ///< Status Register.
-	volatile uint32_t ier; ///< Interrupt Enable Register.
-	volatile uint32_t idr; ///< Interrupt Disable Register.
-	volatile uint32_t imr; ///< Interrupt Mask Register.
-	volatile uint32_t emr; ///< Extended Mode Register.
-	volatile uint32_t reserved[3]; ///< Reserved.
+	uint32_t ccr; ///< Channel Control Register.
+	uint32_t cmr; ///< Channel Mode Register.
+	uint32_t smmr; ///< Stepper Motor Mode Register.
+	uint32_t rab; ///< Register AB.
+	uint32_t cv; ///< Counter Value Register.
+	uint32_t ra; ///< Register A.
+	uint32_t rb; ///< Register B.
+	uint32_t rc; ///< Register C.
+	uint32_t sr; ///< Status Register.
+	uint32_t ier; ///< Interrupt Enable Register.
+	uint32_t idr; ///< Interrupt Disable Register.
+	uint32_t imr; ///< Interrupt Mask Register.
+	uint32_t emr; ///< Extended Mode Register.
+	uint32_t reserved[3]; ///< Reserved.
 } Tic_ChannelRegisters;
 
 /// \brief Structure describing TC registers.
 typedef struct {
 	Tic_ChannelRegisters channelRegs[3];
-	volatile uint32_t bcr; ///< Block Control Register.
-	volatile uint32_t bmr; ///< Block Mode Register.
-	volatile uint32_t qier; ///< QDEC Interrupt Enable Register.
-	volatile uint32_t qidr; ///< QDEC Interrupt Disable Register.
-	volatile uint32_t qimr; ///< QDEC Interrupt Mask Register.
-	volatile uint32_t qisr; ///< QDEC Interrupt Status Register.
-	volatile uint32_t fmr; ///< Fault Mode Register.
-	volatile uint32_t reserved0[2]; ///< Reserved.
-	volatile uint32_t wpmr; ///< Write Protection Mode Register.
-	volatile uint32_t reserved1[6]; ///< Reserved.
+	uint32_t bcr; ///< Block Control Register.
+	uint32_t bmr; ///< Block Mode Register.
+	uint32_t qier; ///< QDEC Interrupt Enable Register.
+	uint32_t qidr; ///< QDEC Interrupt Disable Register.
+	uint32_t qimr; ///< QDEC Interrupt Mask Register.
+	uint32_t qisr; ///< QDEC Interrupt Status Register.
+	uint32_t fmr; ///< Fault Mode Register.
+	uint32_t reserved0[2]; ///< Reserved.
+	uint32_t wpmr; ///< Write Protection Mode Register.
+	uint32_t reserved1[6]; ///< Reserved.
 } Tic_Registers;
 
 // clang-format off
 
-#define TIC_SAMV71_TIC0_BASE_ADDRESS    0x4000C000u
-#define TIC_SAMV71_TIC1_BASE_ADDRESS    0x40010000u
-#define TIC_SAMV71_TIC2_BASE_ADDRESS    0x40014000u
-#define TIC_SAMV71_TIC3_BASE_ADDRESS    0x40054000u
+#if defined(N7S_TARGET_SAMV71Q21)
+#define TIC_TIC0_BASE_ADDRESS    0x4000C000u
+#define TIC_TIC1_BASE_ADDRESS    0x40010000u
+#define TIC_TIC2_BASE_ADDRESS    0x40014000u
+#define TIC_TIC3_BASE_ADDRESS    0x40054000u
+#elif defined(N7S_TARGET_SAMRH71F20) || defined(N7S_TARGET_SAMRH707F18)
+#define TIC_TIC0_BASE_ADDRESS    0x40070000U
+#define TIC_TIC1_BASE_ADDRESS    0x40074000U
+#define TIC_TIC2_BASE_ADDRESS    0x40078000U
+#if defined(N7S_TARGET_SAMRH71F20)
+#define TIC_TIC3_BASE_ADDRESS    0x4007C000U
+#endif
+#else
+#error "No target platform specified (missing N7S_TARGET_* macro)"
+#endif
 
 #define TIC_WPMR_WPKEY_PASSWD_VALUE     0x54494Du
 

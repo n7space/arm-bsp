@@ -1,14 +1,14 @@
 /**@file
  * This file is part of the ARM BSP for the Test Environment.
  *
- * @copyright 2020-2021 N7 Space Sp. z o.o.
+ * @copyright 2018-2025 N7 Space Sp. z o.o.
  *
  * Test Environment was developed under a programme of,
  * and funded by, the European Space Agency (the "ESA").
  *
  *
- * Licensed under the ESA Public License (ESA-PL) Permissive,
- * Version 2.3 (the "License");
+ * Licensed under the ESA Public License (ESA-PL) Permissive (Type 3),
+ * Version 2.4 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
@@ -25,17 +25,20 @@
 #define BSP_FPU_H
 
 /// \file  Fpu.h
+/// \addtogroup Bsp
 /// \brief BSP driver for Floating Point Unit.
-
-/**
- * @defgroup Fpu Fpu
- * @ingroup Bsp
- * @{
- */
 
 #include <Utils/Utils.h>
 
 #include "FpuRegisters.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/// @addtogroup Fpu
+/// @ingroup Bsp
+/// @{
 
 /// \brief FPU half-precision modes.
 typedef enum {
@@ -47,20 +50,17 @@ typedef enum {
 
 /// \brief FPU NaN modes.
 typedef enum {
-	/// \brief NaN operands propagate through to the output of a
-	/// floating-point operation.
+	/// \brief NaN operands propagate through to the output of a floating-point operation.
 	Fpu_NanMode_NanOperandsPropagate = 0,
-	/// \brief Any operation involving one or more NaNs returns the Default
-	/// NaN.
+	/// \brief Any operation involving one or more NaNs returns the Default NaN.
 	Fpu_NanMode_DefaultNanReturned = 1,
 } Fpu_NanMode;
 
 /// \brief Flush-to-zero modes.
 typedef enum {
-	/// \brief Flush-to-zero mode disabled, FPU is IEEE-754 compliant.
-	Fpu_FlushToZeroMode_Disabled = 0,
-	/// \brief Flush-to-zero mode enabled.
-	Fpu_FlushToZeroMode_Enabled = 1,
+	Fpu_FlushToZeroMode_Disabled =
+			0, ///< Flush-to-zero mode disabled, FPU is IEEE-754 compliant.
+	Fpu_FlushToZeroMode_Enabled = 1, ///< Flush-to-zero mode enabled.
 } Fpu_FlushToZeroMode;
 
 /// \brief Rounding mode.
@@ -75,10 +75,10 @@ typedef enum {
 
 /// \brief Coprocessor access mode.
 typedef enum {
-	/// \brief Access generated NOCP UsageFault.
-	Fpu_CoprocessorAccessMode_Denied = 0,
-	/// \brief Non-priviledged access generates NOCP UsageFault.
-	Fpu_CoprocessorAccessMode_Priviledged = 1,
+	Fpu_CoprocessorAccessMode_Denied =
+			0, ///< Access generated NOCP UsageFault.
+	Fpu_CoprocessorAccessMode_Priviledged =
+			1, ///< Non-priviledged access generates NOCP UsageFault.
 	Fpu_CoprocessorAccessMode_Reserved = 2, ///< Reserved.
 	Fpu_CoprocessorAccessMode_Full = 3, ///< Full access.
 } Fpu_CoprocessorAccessMode;
@@ -141,7 +141,7 @@ typedef struct {
 	bool isNanValuePropagationSupported; ///< NaN value propagation supported.
 	/// \brief Full denormalized number arithmetic supported.
 	bool isFullDenormalizedNumberArithmeticSupported;
-	bool areMisceleneousFeaturesSupported; ///< Misceleneous features supported.
+	bool areMiscellaneousFeaturesSupported; ///< Miscellaneous features supported.
 } Fpu_Features;
 
 /// \brief Structure holding FPU status.
@@ -165,8 +165,8 @@ typedef struct {
 /// \brief Structure representing FPU.
 typedef struct {
 	Fpu_Registers *registers; ///< Pointer to FPU registers.
-	/// \brief Pointer to coprocessor registers.
-	Fpu_CoprocessorRegisters *coprocessorRegisters;
+	Fpu_CoprocessorRegisters *
+			coprocessorRegisters; ///< Pointer to coprocessor registers.
 } Fpu;
 
 /// \brief Enables hardware support for floating point operations.
@@ -216,6 +216,10 @@ void Fpu_getFeatures(const Fpu *const fpu, Fpu_Features *const features);
 /// \param [out] status Pointer to a structure containing FPU status.
 void Fpu_getStatus(const Fpu *const fpu, Fpu_Status *const status);
 
-#endif // BSP_FPU_H
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
-/** @} */
+/// @}
+
+#endif // BSP_FPU_H

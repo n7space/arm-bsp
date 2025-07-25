@@ -1,14 +1,14 @@
 /**@file
  * This file is part of the ARM BSP for the Test Environment.
  *
- * @copyright 2020-2021 N7 Space Sp. z o.o.
+ * @copyright 2018-2025 N7 Space Sp. z o.o.
  *
  * Test Environment was developed under a programme of,
  * and funded by, the European Space Agency (the "ESA").
  *
  *
- * Licensed under the ESA Public License (ESA-PL) Permissive,
- * Version 2.3 (the "License");
+ * Licensed under the ESA Public License (ESA-PL) Permissive (Type 3),
+ * Version 2.4 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
@@ -21,11 +21,9 @@
  * limitations under the License.
  */
 
-/**
- * @defgroup Mcan Mcan
- * @ingroup Bsp
- * @{
- */
+/// \file Mcan.h
+/// \addtogroup Bsp
+/// \brief Mcan hardware driver function prototypes and datatypes.
 
 #ifndef BSP_MCAN_H
 #define BSP_MCAN_H
@@ -33,26 +31,46 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include <Utils/ErrorCode.h>
+
 #include "McanRegisters.h"
+
+/// @addtogroup Mcan
+/// @ingroup Bsp
+/// @{
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /// \brief Mcan error codes.
 typedef enum {
-	Mcan_ErrorCodes_InvalidRxFifoId = 1, ///< Invalid RX FIFO id was given.
-	Mcan_ErrorCodes_RxFifoEmpty = 2, ///< RX FIFO is empty.
-	Mcan_ErrorCodes_TxFifoFull = 3, ///< RX FIFO is empty.
-	Mcan_ErrorCodes_TxEventFifoEmpty = 4, ///< RX FIFO is empty.
+	/// \brief Invalid RX FIFO id was given.
+	Mcan_ErrorCode_InvalidRxFifoId = ERROR_CODE_DEFINE('C', 'A', 'N', 1),
+	/// \brief RX FIFO is empty.
+	Mcan_ErrorCode_RxFifoEmpty = ERROR_CODE_DEFINE('C', 'A', 'N', 2),
+	/// \brief TX FIFO is full.
+	Mcan_ErrorCode_TxFifoFull = ERROR_CODE_DEFINE('C', 'A', 'N', 3),
+	/// \brief TX Event FIFO is empty.
+	Mcan_ErrorCode_TxEventFifoEmpty = ERROR_CODE_DEFINE('C', 'A', 'N', 4),
 	/// \brief Clock domains synchronization timeout.
-	Mcan_ErrorCodes_InitializationStartTimeout = 5,
+	Mcan_ErrorCode_InitializationStartTimeout =
+			ERROR_CODE_DEFINE('C', 'A', 'N', 5),
 	/// \brief Clock stop request timeout.
-	Mcan_ErrorCodes_ClockStopRequestTimeout = 6,
-	Mcan_ErrorCodes_IndexOutOfRange = 7, ///< Requested index out of range.
-} Mcan_ErrorCodes;
+	Mcan_ErrorCode_ClockStopRequestTimeout =
+			ERROR_CODE_DEFINE('C', 'A', 'N', 6),
+	/// \brief Requested index out of range.
+	Mcan_ErrorCode_IndexOutOfRange = ERROR_CODE_DEFINE('C', 'A', 'N', 7),
+	/// \brief Invalid element size was given.
+	Mcan_ErrorCode_ElementSizeInvalid = ERROR_CODE_DEFINE('C', 'A', 'N', 8),
+	/// \brief Invalid operation mode was requested.
+	Mcan_ErrorCode_ModeInvalid = ERROR_CODE_DEFINE('C', 'A', 'N', 9),
+} Mcan_ErrorCode;
 
 /// \brief Mcan device identifiers.
 typedef enum {
 	Mcan_Id_0 = 0, ///< MCAN0 Id.
 	Mcan_Id_1 = 1, ///< MCAN1 Id.
-	Mcan_Id_Count = 2, ///< Number of available MCAN Ids.
 } Mcan_Id;
 
 /// \brief Mcan Rx FIFO identifier.
@@ -94,21 +112,19 @@ typedef enum {
 	Mcan_Mode_PowerDown,
 	/// \brief Internal loopback test operation mode.
 	Mcan_Mode_InternalLoopBackTest,
+	/// \brief Invalid mode.
+	Mcan_Mode_Invalid,
 } Mcan_Mode;
 
 /// \brief Nominal and data bit timing configuration.
 typedef struct {
-	/// \brief Bit Rate Prescaler tq (time quantum) = t_periphclk *
-	/// (bitRatePrescaler + 1)
+	/// \brief Bit Rate Prescaler tq (time quantum) = t_periphclk * (bitRatePrescaler + 1)
 	uint16_t bitRatePrescaler;
-	/// \brief (Re)Synchronization Jump Width = tq * (synchronizationJump +
-	/// 1)
+	/// \brief (Re)Synchronization Jump Width = tq * (synchronizationJump + 1)
 	uint8_t synchronizationJump;
-	/// \brief Time Segment After Sample Point = tq *
-	/// (timeSegmentAfterSamplePoint + 1)
+	/// \brief Time Segment After Sample Point = tq * (timeSegmentAfterSamplePoint + 1)
 	uint8_t timeSegmentAfterSamplePoint;
-	/// \brief Time Segment Before Sample Point = tq *
-	/// (timeSegmentBeforeSamplePoint + 1)
+	/// \brief Time Segment Before Sample Point = tq * (timeSegmentBeforeSamplePoint + 1)
 	uint8_t timeSegmentBeforeSamplePoint;
 } Mcan_BitTiming;
 
@@ -147,10 +163,9 @@ typedef enum {
 /// \brief Id filtering policy used for standard and extended IDs filtering.
 typedef struct {
 	bool isIdRejected; ///< Reject all frames flag.
-	/// \brief Non-matching frames handling policy.
-	Mcan_NonMatchingPolicy nonMatchingPolicy;
-	/// \brief Filter list address within message RAM.
-	uint32_t *filterListAddress;
+	Mcan_NonMatchingPolicy
+			nonMatchingPolicy; ///< Non-matching frames handling policy.
+	uint32_t *filterListAddress; ///< Filter list address within message RAM.
 	uint8_t filterListSize; ///< Filter list elements count.
 } Mcan_IdFilter;
 
@@ -164,7 +179,48 @@ typedef enum {
 	Mcan_ElementSize_32 = 5, ///< 32-byte data field.
 	Mcan_ElementSize_48 = 6, ///< 48-byte data field.
 	Mcan_ElementSize_64 = 7, ///< 64-byte data field.
+	Mcan_ElementSize_Invalid = 8, ///< invalid size of data field.
 } Mcan_ElementSize;
+
+/// \brief Data length code in CAN frame.
+typedef enum {
+	Mcan_DataLengthCode_1 = 1u, ///< 1-byte data field.
+	Mcan_DataLengthCode_2 = 2u, ///< 2-byte data field.
+	Mcan_DataLengthCode_3 = 3u, ///< 3-byte data field.
+	Mcan_DataLengthCode_4 = 4u, ///< 4-byte data field.
+	Mcan_DataLengthCode_5 = 5u, ///< 5-byte data field.
+	Mcan_DataLengthCode_6 = 6u, ///< 6-byte data field.
+	Mcan_DataLengthCode_7 = 7u, ///< 7-byte data field.
+	Mcan_DataLengthCode_8 = 8u, ///< 8-byte data field.
+	Mcan_DataLengthCode_12 = 9u, ///< 12-byte data field.
+	Mcan_DataLengthCode_16 = 10u, ///< 16-byte data field.
+	Mcan_DataLengthCode_20 = 11u, ///< 20-byte data field.
+	Mcan_DataLengthCode_24 = 12u, ///< 24-byte data field.
+	Mcan_DataLengthCode_32 = 13u, ///< 32-byte data field.
+	Mcan_DataLengthCode_48 = 14u, ///< 48-byte data field.
+	Mcan_DataLengthCode_64 = 15u, ///< 64-byte data field.
+	Mcan_DataLengthCode_Invalid = 0xf7u, ///< invalid size of data field.
+} Mcan_DataLengthCode;
+
+/// \brief Raw data length in CAN frame.
+typedef enum {
+	Mcan_DataLengthRaw_1 = 1u, ///< 1-byte data field.
+	Mcan_DataLengthRaw_2 = 2u, ///< 2-byte data field.
+	Mcan_DataLengthRaw_3 = 3u, ///< 3-byte data field.
+	Mcan_DataLengthRaw_4 = 4u, ///< 4-byte data field.
+	Mcan_DataLengthRaw_5 = 5u, ///< 5-byte data field.
+	Mcan_DataLengthRaw_6 = 6u, ///< 6-byte data field.
+	Mcan_DataLengthRaw_7 = 7u, ///< 7-byte data field.
+	Mcan_DataLengthRaw_8 = 8u, ///< 8-byte data field.
+	Mcan_DataLengthRaw_12 = 12u, ///< 12-byte data field.
+	Mcan_DataLengthRaw_16 = 16u, ///< 16-byte data field.
+	Mcan_DataLengthRaw_20 = 20u, ///< 20-byte data field.
+	Mcan_DataLengthRaw_24 = 24u, ///< 24-byte data field.
+	Mcan_DataLengthRaw_32 = 32u, ///< 32-byte data field.
+	Mcan_DataLengthRaw_48 = 48u, ///< 48-byte data field.
+	Mcan_DataLengthRaw_64 = 64u, ///< 64-byte data field.
+	Mcan_DataLengthRaw_Invalid = 0xf7u, ///< invalid size of data field.
+} Mcan_DataLengthRaw;
 
 /// \brief Rx FIFO operation mode.
 typedef enum {
@@ -179,23 +235,22 @@ typedef struct {
 	bool isEnabled; ///< Rx FIFO enable flag.
 	uint32_t *startAddress; ///< Rx FIFO start address within message RAM.
 	uint8_t size; ///< Rx FIFO max elements count.
-	/// \brief Rx FIFO watermark level for interrupt; 0 - disabled.
-	uint8_t watermark;
+	uint8_t watermark; ///< Rx FIFO watermark level for interrupt; 0 - disabled.
 	Mcan_RxFifoOperationMode mode; ///< Operation mode.
 	Mcan_ElementSize elementSize; ///< The size of Rx FIFO element.
-} Mcan_RxFifo;
+} Mcan_RxFifoConfig;
 
 /// \brief Rx Buffer settings.
 typedef struct {
 	uint32_t *startAddress; ///< Rx Buffer start address within message RAM.
 	Mcan_ElementSize elementSize; ///< The size of Rx Buffer element.
-} Mcan_RxBuffer;
+} Mcan_RxBufferConfig;
 
 /// \brief Tx Queue type.
 typedef enum {
 	Mcan_TxQueueType_Fifo = 0, ///< Tx FIFO.
-	/// \brief Tx Id queue (lower Id means higher priority).
-	Mcan_TxQueueType_Id = 1,
+	Mcan_TxQueueType_Id =
+			1, ///< Tx Id queue (lower Id means higher priority).
 } Mcan_TxQueueType;
 
 /// \brief Tx Buffer/FIFO/Queue settings.
@@ -205,9 +260,9 @@ typedef struct {
 	uint8_t bufferSize; ///< Number of Tx Buffer elements.
 	uint8_t queueSize; ///< Number of Tx FIFO/Queue elements.
 	Mcan_TxQueueType queueType; ///< Type of Tx Queue (FIFO or Id queue).
-	/// \brief The size of Tx Buffer/FIFO/Queue element.
-	Mcan_ElementSize elementSize;
-} Mcan_TxBuffer;
+	Mcan_ElementSize
+			elementSize; ///< The size of Tx Buffer/FIFO/Queue element.
+} Mcan_TxBufferConfig;
 
 /// \brief Tx Event FIFO settings.
 typedef struct {
@@ -215,7 +270,7 @@ typedef struct {
 	uint32_t *startAddress; ///< Tx Event FIFO start address within message RAM.
 	uint8_t size; ///< Tx Event FIFO max elements count.
 	uint8_t watermark; ///< Tx Event FIFO watermark level for interrupt; 0 - disabled.
-} Mcan_TxEventFifo;
+} Mcan_TxEventFifoConfig;
 
 /// \brief MCAN interrupt sources.
 typedef enum {
@@ -268,40 +323,49 @@ typedef struct {
 
 /// \brief MCAN interrupt status structure.
 typedef struct {
-	bool hasRf0nOccured; ///< Receive FIFO 0 New Message interrupt occured.
-	bool hasRf0wOccured; ///< Receive FIFO 0 Watermark Reached interrupt occured.
-	bool hasRf0fOccured; ///< Receive FIFO 0 Full interrupt occured.
-	bool hasRf0lOccured; ///< Receive FIFO 0 Message Lost interrupt occured.
-	bool hasRf1nOccured; ///< Receive FIFO 1 New Message interrupt occured.
-	bool hasRf1wOccured; ///< Receive FIFO 1 Watermark Reached interrupt occured.
-	bool hasRf1fOccured; ///< Receive FIFO 1 Full interrupt occured.
-	bool hasRf1lOccured; ///< Receive FIFO 1 Message Lost interrupt occured.
-	bool hasHpmOccured; ///< High Priority Message interrupt occured.
-	bool hasTcOccured; ///< Transmission Completed interrupt occured.
-	bool hasTcfOccured; ///< Transmission Cancellation Finished interrupt occured.
-	bool hasTfeOccured; ///< Tx FIFO Empty interrupt occured.
-	bool hasTefnOccured; ///< Tx Event FIFO New Entry interrupt occured.
-	bool hasTefwOccured; ///< Tx Event FIFO Watermark Reached interrupt occured.
-	bool hasTeffOccured; ///< Tx Event FIFO Full interrupt occured.
-	bool hasTeflOccured; ///< Tx Event FIFO Element Lost interrupt occured.
-	bool hasTswOccured; ///< Timestamp Wraparound interrupt occured.
-	bool hasMrafOccured; ///< Message RAM Access Failure interrupt occured.
-	bool hasTooOccured; ///< Timeout Occurred interrupt occured.
-	bool hasDrxOccured; ///< Message stored to Dedicated Receive Buffer interrupt occured.
-	bool hasEloOccured; ///< Error Logging Overflow interrupt occured.
-	bool hasEpOccured; ///< Error Passive interrupt occured.
-	bool hasEwOccured; ///< Warning Status interrupt occured.
-	bool hasBoOccured; ///< Bus_Off Status interrupt occured.
-	bool hasWdiOccured; ///< Watchdog Interrupt interrupt occured.
-	bool hasPeaOccured; ///< Protocol Error in Arbitration Phase interrupt occured.
-	bool hasPedOccured; ///< Protocol Error in Data Phase interrupt occured.
-	bool hasAraOccured; ///< Access to Reserved Address interrupt occured.
+	bool hasRf0nOccurred; ///< Receive FIFO 0 New Message interrupt occurred.
+	bool hasRf0wOccurred; ///< Receive FIFO 0 Watermark Reached interrupt occurred.
+	bool hasRf0fOccurred; ///< Receive FIFO 0 Full interrupt occurred.
+	bool hasRf0lOccurred; ///< Receive FIFO 0 Message Lost interrupt occurred.
+	bool hasRf1nOccurred; ///< Receive FIFO 1 New Message interrupt occurred.
+	bool hasRf1wOccurred; ///< Receive FIFO 1 Watermark Reached interrupt occurred.
+	bool hasRf1fOccurred; ///< Receive FIFO 1 Full interrupt occurred.
+	bool hasRf1lOccurred; ///< Receive FIFO 1 Message Lost interrupt occurred.
+	bool hasHpmOccurred; ///< High Priority Message interrupt occurred.
+	bool hasTcOccurred; ///< Transmission Completed interrupt occurred.
+	bool hasTcfOccurred; ///< Transmission Cancellation Finished interrupt occurred.
+	bool hasTfeOccurred; ///< Tx FIFO Empty interrupt occurred.
+	bool hasTefnOccurred; ///< Tx Event FIFO New Entry interrupt occurred.
+	bool hasTefwOccurred; ///< Tx Event FIFO Watermark Reached interrupt occurred.
+	bool hasTeffOccurred; ///< Tx Event FIFO Full interrupt occurred.
+	bool hasTeflOccurred; ///< Tx Event FIFO Element Lost interrupt occurred.
+	bool hasTswOccurred; ///< Timestamp Wraparound interrupt occurred.
+	bool hasMrafOccurred; ///< Message RAM Access Failure interrupt occurred.
+	bool hasTooOccurred; ///< Timeout Occurred interrupt occurred.
+	bool hasDrxOccurred; ///< Message stored to Dedicated Receive Buffer interrupt occurred.
+	bool hasEloOccurred; ///< Error Logging Overflow interrupt occurred.
+	bool hasEpOccurred; ///< Error Passive interrupt occurred.
+	bool hasEwOccurred; ///< Warning Status interrupt occurred.
+	bool hasBoOccurred; ///< Bus_Off Status interrupt occurred.
+	bool hasWdiOccurred; ///< Watchdog Interrupt interrupt occurred.
+	bool hasPeaOccurred; ///< Protocol Error in Arbitration Phase interrupt occurred.
+	bool hasPedOccurred; ///< Protocol Error in Data Phase interrupt occurred.
+	bool hasAraOccurred; ///< Access to Reserved Address interrupt occurred.
 } Mcan_InterruptStatus;
+
+/// \brief Mcan timeout configuration structure.
+typedef struct {
+	/// \brief Timeout counter enable flag.
+	bool isEnabled;
+	/// \brief The type of timeout to be used (valid only if isTimeoutEnabled == true).
+	Mcan_TimeoutType type;
+	/// \brief Timeout period.
+	uint16_t period;
+} Mcan_TimeoutConfig;
 
 /// \brief Mcan configuration structure.
 typedef struct {
-	/// \brief Base address of the message ram; only the upper 16 bits are
-	/// used
+	/// \brief Base address of the message ram; only the upper 16 bits are used
 	///        which shall be constant for the whole message RAM area.
 	uint32_t *msgRamBaseAddress;
 	/// \brief Operation mode.
@@ -316,30 +380,25 @@ typedef struct {
 	Mcan_TransmitterDelayCompensation transmitterDelayCompensation;
 	/// \brief The clock source used for timestamp generation.
 	Mcan_TimestampClk timestampClk;
-	/// \brief Timestamp and timeout clock prescaler; clock = selected clock
-	/// / (timestampPrescaler + 1).
+	/// \brief Timestamp and timeout clock prescaler.
+	/// \details clock = selected clock / (timestampPrescaler + 1).
 	uint8_t timestampTimeoutPrescaler;
-	/// \brief Timeout counter enable flag.
-	bool isTimeoutEnabled;
-	/// \brief The type of timeout to be used (valid only if
-	/// isTimeoutEnabled == true).
-	Mcan_TimeoutType timeoutType;
-	/// \brief Timeout period.
-	uint16_t timeoutPeriod;
+	/// \brief Timeout config.
+	Mcan_TimeoutConfig timeout;
 	/// \brief ID filtering settings for standard CAN IDs.
 	Mcan_IdFilter standardIdFilter;
 	/// \brief ID filtering settings for extended CAN IDs.
 	Mcan_IdFilter extendedIdFilter;
 	/// \brief Rx FIFO 0 settings.
-	Mcan_RxFifo rxFifo0;
+	Mcan_RxFifoConfig rxFifo0;
 	/// \brief Rx FIFO 1 settings.
-	Mcan_RxFifo rxFifo1;
+	Mcan_RxFifoConfig rxFifo1;
 	/// \brief Rx Buffer settings.
-	Mcan_RxBuffer rxBuffer;
+	Mcan_RxBufferConfig rxBuffer;
 	/// \brief Tx Buffer settings.
-	Mcan_TxBuffer txBuffer;
+	Mcan_TxBufferConfig txBuffer;
 	/// \brief Tx Event FIFO settings.
-	Mcan_TxEventFifo txEventFifo;
+	Mcan_TxEventFifoConfig txEventFifo;
 	/// \brief MCAN interrupts configuration.
 	Mcan_InterruptConfig interrupts[Mcan_Interrupt_Count];
 	/// \brief MCAN Line 0 interrupt enabled flag.
@@ -390,7 +449,7 @@ typedef struct {
 	///        Standard Id CAN: 0-8,
 	///        Extended Id CAN: 0-8, 12, 16, 20, 24, 32, 48, 64.
 	uint8_t dataSize;
-	uint8_t *data; ///< Data pointer.
+	const uint8_t *data; ///< Data pointer;
 	bool isInterruptEnabled; ///< Enable interrupt after transmission complete.
 } Mcan_TxElement;
 
@@ -401,7 +460,7 @@ typedef struct {
 	Mcan_FrameType frameType; ///< The type of frame.
 	uint32_t id; ///< CAN Id - 11 or 29 bit (for Extended Frame type).
 	uint8_t marker; ///< Message marker to be placed in the Tx Event FIFO.
-	Mcan_TxEventType eventType; ///< Tx Event type.
+	Mcan_TxEventType eventType; ///< Tx Event type;
 	bool isCanFdFormatEnabled; ///< CAN FD format enable flag.
 	bool isBitRateSwitchingEnabled; ///< Bit rate switching enable flag.
 	/// \brief Number of data bytes set in DLC field.
@@ -409,7 +468,7 @@ typedef struct {
 	///        Standard Id CAN: 0-8,
 	///        Extended Id CAN: 0-8, 12, 16, 20, 24, 32, 48, 64.
 	uint8_t dataSize;
-	uint16_t timestamp; ///< Frame timestamp.
+	uint16_t timestamp; ///< Frame timestamp;
 } Mcan_TxEventElement;
 
 /// \brief Mcan Rx element for Rx Buffer/FIFO.
@@ -419,16 +478,16 @@ typedef struct {
 	Mcan_FrameType frameType; ///< The type of frame.
 	uint32_t id; ///< CAN Id - 11 or 29 bit (for Extended Frame type).
 	bool isNonMatchingFrame; ///< Rx frame did not match any filter.
-	uint8_t filterIndex; ///< Matching filter index (valid if !nonMatchingFrame).
+	uint8_t filterIndex; ///< Matching filter index (valid if nonMatchingFrame == false).
 	bool isCanFdFormatEnabled; ///< CAN FD format enable flag.
 	bool isBitRateSwitchingEnabled; ///< Bit rate switching enable flag.
-	uint16_t timestamp; ///< Frame timestamp.
+	uint16_t timestamp; ///< Frame timestamp;
 	/// \brief Number of data bytes set in DLC field.
 	///        Allowed values:
 	///        Standard Id CAN: 0-8,
 	///        Extended Id CAN: 0-8, 12, 16, 20, 24, 32, 48, 64.
 	uint8_t dataSize;
-	uint8_t *data; ///< Data pointer.
+	uint8_t *data; ///< Data pointer;
 } Mcan_RxElement;
 
 /// \brief The type of Rx filter.
@@ -451,8 +510,8 @@ typedef enum {
 			5, ///< Set priority and store in FIFO 0 if filter matches.
 	Mcan_RxFilterConfig_PriorityRxFifo1 =
 			6, ///< Set priority and store in FIFO 1 if filter matches,
-	Mcan_RxFilterConfig_RxBuffer =
-			7, ///< Store into Rx Buffer or as debug message, filter type (SFT[1:0]) ignored, id == id1.
+	/// \brief Store into Rx Buffer or as debug message, filter type (SFT[1:0]) ignored, id == id1.
+	Mcan_RxFilterConfig_RxBuffer = 7,
 } Mcan_RxFilterConfig;
 
 /// \brief Rx filter element.
@@ -463,24 +522,31 @@ typedef struct {
 	uint32_t id2; ///< Filter Id2; bits [10:0] for standard Id, [28:0] for extended Id.
 } Mcan_RxFilterElement;
 
+/// \brief Mcan Tx descriptor
+typedef struct {
+	uint32_t *bufferAddress; ///< Address (32-bit) of the Tx Buffer within message RAM.
+	uint8_t bufferSize; ///< Size (number of 32-bit words) of the Tx Buffer.
+	uint32_t *queueAddress; ///< Address (32-bit) of the Tx Queue within message RAM.
+	uint8_t queueSize; ///< Size (number of 32-bit words) of the Tx Queue.
+	uint8_t elementSize; ///< Size of the data field (in bytes) of the Tx Element.
+} Mcan_Tx;
+
+/// \brief Mcan Rx Fifo descriptor.
+typedef struct {
+	uint32_t *address; ///< Address (32-bit) of the Rx FIFO within message RAM.
+	uint8_t size; ///< Size (number of 32-bit words) of the Rx FIFO.
+	uint8_t elementSize; ///< Size of the data field (in bytes) of the Rx Element in FIFO.
+} Mcan_RxFifo;
+
 /// \brief Mcan device descriptor.
 typedef struct {
-	Mcan_Id id; ///< MCAN core identifier.
-	uint32_t *msgRamBaseAddress; ///< Base address of the message ram.
-	volatile Mcan_Registers *reg; ///< MCAN core registers.
-	uint32_t *txBufferAddress; ///< Address (32-bit) of the Tx Buffer within message RAM.
-	uint8_t txBufferSize; ///< Size (number of 32-bit words) of the Tx Buffer.
-	uint32_t *txQueueAddress; ///< Address (32-bit) of the Tx Queue within message RAM.
-	uint8_t txQueueSize; ///< Size (number of 32-bit words) of the Tx Queue.
-	uint8_t txElementSize; ///< Size of the data field (in bytes) of the Tx Element.
+	uint32_t *msgRamBaseAddress; ///< Base address of the message ram;
+	Mcan_Registers reg; ///< MCAN registers.
+	Mcan_Tx tx; ///< Tx buffer/queue descriptor.
 	uint32_t *rxBufferAddress; ///< Address (32-bit) of the Rx Buffer within message RAM.
 	uint8_t rxBufferElementSize; ///< Size of the data field (in bytes) of the Tx Element.
-	uint32_t *rxFifo0Address; ///< Address (32-bit) of the Rx FIFO0 within message RAM.
-	uint8_t rxFifo0Size; ///< Size (number of 32-bit words) of the Rx FIFO0.
-	uint8_t rxFifo0ElementSize; ///< Size of the data field (in bytes) of the Rx Element in FIFO0.
-	uint32_t *rxFifo1Address; ///< Address (32-bit) of the Rx FIFO1 within message RAM.
-	uint8_t rxFifo1Size; ///< Size (number of 32-bit words) of the Rx FIFO1.
-	uint8_t rxFifo1ElementSize; ///< Size of the data field (in bytes) of the Rx Element in FIFO1.
+	Mcan_RxFifo rxFifo0; ///< Rx FIFO0 descriptor.
+	Mcan_RxFifo rxFifo1; ///< Rx FIFO1 descriptor.
 	uint32_t *txEventFifoAddress; ///< Address (32-bit) of the Tx Event Fifo within message RAM.
 	uint8_t txEventFifoSize; ///< Size (number of 32-bit words) of the Tx Event Fifo.
 	uint32_t *rxStdFilterAddress; ///< Address (32-bit) of the Standard Id filter within message RAM.
@@ -489,10 +555,15 @@ typedef struct {
 	uint8_t rxExtFilterSize; ///< Size (number of 32-bit words) of the Extended Id filter.
 } Mcan;
 
+/// \brief Returns Mcan registers base address.
+/// \param [in] id Identifier of the device.
+/// \returns Structure containing start addresses of Mcan registers.
+Mcan_Registers Mcan_getDeviceRegisters(const Mcan_Id id);
+
 /// \brief Initializes a device descriptor for Mcan.
-/// \param [in] id Mcan device identifier.
 /// \param [out] mcan Mcan device descriptor.
-void Mcan_init(const Mcan_Id id, Mcan *const mcan);
+/// \param [in] regs Pointers to Mcan register descriptors.
+void Mcan_init(Mcan *const mcan, const Mcan_Registers regs);
 
 /// \brief Configures an Mcan device based on a configuration descriptor.
 /// \param [in] mcan Mcan device descriptor.
@@ -502,7 +573,7 @@ void Mcan_init(const Mcan_Id id, Mcan *const mcan);
 /// \retval true Configuration was successful.
 /// \retval false Configuration failed.
 bool Mcan_setConfig(Mcan *const mcan, const Mcan_Config *const config,
-		uint32_t const timeoutLimit, int *const errCode);
+		const uint32_t timeoutLimit, ErrorCode *const errCode);
 
 /// \brief Reads the current configuration of the Mcan device.
 /// \param [in] mcan Mcan device descriptor.
@@ -517,7 +588,7 @@ void Mcan_getConfig(const Mcan *const mcan, Mcan_Config *const config);
 /// \retval true Adding element was successful.
 /// \retval false Adding element failed.
 bool Mcan_txBufferAdd(Mcan *const mcan, const Mcan_TxElement element,
-		const uint8_t index, int *const errCode);
+		const uint8_t index, ErrorCode *const errCode);
 
 /// \brief Adds a new element to the Tx Queue and initializes its transmission.
 /// \param [in] mcan Mcan device descriptor.
@@ -527,7 +598,7 @@ bool Mcan_txBufferAdd(Mcan *const mcan, const Mcan_TxElement element,
 /// \retval true Adding element was successful.
 /// \retval false Adding element failed.
 bool Mcan_txQueuePush(Mcan *const mcan, const Mcan_TxElement element,
-		uint8_t *const index, int *const errCode);
+		uint8_t *const index, ErrorCode *const errCode);
 
 /// \brief Checks whether the specified Tx Buffer or Queue element was sent.
 /// \param [in] mcan Mcan device descriptor.
@@ -543,14 +614,14 @@ bool Mcan_txBufferIsTransmissionFinished(
 /// \param [out] errCode An error code generated during the operation.
 /// \retval true Pulling element was successful.
 /// \retval false Pulling element failed.
-bool Mcan_txEventFifoPull(Mcan *const mcan, Mcan_TxEventElement *const element,
-		int *const errCode);
+bool Mcan_txEventFifoPull(const Mcan *const mcan,
+		Mcan_TxEventElement *const element, ErrorCode *const errCode);
 
 /// \brief Receives element from the Rx Buffer.
 /// \param [in] mcan Mcan device descriptor.
 /// \param [in] index Index of the Rx element to obtain.
 /// \param [out] element Rx element pointer.
-void Mcan_rxBufferGet(Mcan *const mcan, const uint8_t index,
+void Mcan_rxBufferGet(const Mcan *const mcan, const uint8_t index,
 		Mcan_RxElement *const element);
 
 /// \brief Pulls element the Rx Fifo.
@@ -561,7 +632,7 @@ void Mcan_rxBufferGet(Mcan *const mcan, const uint8_t index,
 /// \retval true Pulling element was successful.
 /// \retval false Pulling element failed.
 bool Mcan_rxFifoPull(Mcan *const mcan, const Mcan_RxFifoId id,
-		Mcan_RxElement *const element, int *const errCode);
+		Mcan_RxElement *const element, ErrorCode *const errCode);
 
 /// \brief Reads the status of the Rx Fifo.
 /// \param [in] mcan Mcan device descriptor.
@@ -571,7 +642,7 @@ bool Mcan_rxFifoPull(Mcan *const mcan, const Mcan_RxFifoId id,
 /// \retval true Obtaining RxFifo status was successful.
 /// \retval false Obtaining RxFifo status failed.
 bool Mcan_getRxFifoStatus(const Mcan *const mcan, const Mcan_RxFifoId id,
-		Mcan_RxFifoStatus *const status, int *const errCode);
+		Mcan_RxFifoStatus *const status, ErrorCode *const errCode);
 
 /// \brief Reads the status of the Tx Queue.
 /// \param [in] mcan Mcan device descriptor.
@@ -594,7 +665,7 @@ void Mcan_getTxEventFifoStatus(
 /// \retval false Setting standard ID filter failed.
 bool Mcan_setStandardIdFilter(Mcan *const mcan,
 		const Mcan_RxFilterElement element, const uint8_t index,
-		int *const errCode);
+		ErrorCode *const errCode);
 
 /// \brief Set the Rx filter for extended CAN Id.
 /// \param [in] mcan Mcan device descriptor.
@@ -605,7 +676,7 @@ bool Mcan_setStandardIdFilter(Mcan *const mcan,
 /// \retval false Setting extended ID filter failed.
 bool Mcan_setExtendedIdFilter(Mcan *const mcan,
 		const Mcan_RxFilterElement element, const uint8_t index,
-		int *const errCode);
+		ErrorCode *const errCode);
 
 /// \brief Reads the information about active interrupts.
 /// \param [in] mcan Mcan device descriptor.
@@ -618,15 +689,19 @@ void Mcan_getInterruptStatus(
 static inline void
 Mcan_resetTimeoutCounter(Mcan *const mcan)
 {
-	mcan->reg->tocv = 0;
+	mcan->reg.base->tocv = 0;
 }
 
 /// \brief Returns true if the Tx Queue is empty
 /// \param [in] mcan Mcan device descriptor.
 /// \retval true Hardware transmission FIFO is empty.
-/// \retval false Hardware transmission FIFO is not emppty.
+/// \retval false Hardware transmission FIFO is not empty.
 bool Mcan_isTxFifoEmpty(const Mcan *const mcan);
 
-#endif // BSP_MCAN_H
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
-/** @} */
+/// @}
+
+#endif // BSP_MCAN_H
