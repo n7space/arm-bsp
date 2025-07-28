@@ -1,7 +1,7 @@
 /**@file
- * This file is part of the ARM BSP for the Test Environment.
+ * This file is part of the N7-Core library used in the Test Environment.
  *
- * @copyright 2018-2025 N7 Space Sp. z o.o.
+ * @copyright 2022-2024 N7 Space Sp. z o.o.
  *
  * Test Environment was developed under a programme of,
  * and funded by, the European Space Agency (the "ESA").
@@ -21,6 +21,13 @@
  * limitations under the License.
  */
 
-/**
- * @defgroup Bsp Bsp
- */
+#include "Utils.h"
+
+void
+busyWaitLoop(const uint32_t iterations)
+{
+	asm volatile("nop" ::: "memory");
+	for (uint32_t counter = 0; counter < iterations; counter++)
+		asm volatile("nop" : "+g"(counter)::"memory");
+	asm volatile("nop" ::: "memory");
+}

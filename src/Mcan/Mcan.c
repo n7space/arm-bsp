@@ -1,14 +1,14 @@
 /**@file
  * This file is part of the ARM BSP for the Test Environment.
  *
- * @copyright 2020-2021 N7 Space Sp. z o.o.
+ * @copyright 2018-2025 N7 Space Sp. z o.o.
  *
  * Test Environment was developed under a programme of,
  * and funded by, the European Space Agency (the "ESA").
  *
  *
- * Licensed under the ESA Public License (ESA-PL) Permissive,
- * Version 2.3 (the "License");
+ * Licensed under the ESA Public License (ESA-PL) Permissive (Type 3),
+ * Version 2.4 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
@@ -27,59 +27,77 @@
 #include <stddef.h>
 #include <string.h>
 
+#include <Utils/Bits.h>
+#include <Utils/ErrorCode.h>
 #include <Utils/Utils.h>
 
-static bool
-verifyMcanId(const Mcan_Id id)
+#include <bsp/arm/Scb/Scb.h>
+
+Mcan_Registers
+Mcan_getDeviceRegisters(const Mcan_Id id)
 {
-	return (id < Mcan_Id_Count);
+	Mcan_Registers registers = { .base = NULL, .canDmaBase = NULL };
+	switch (id) {
+	case Mcan_Id_0:
+		// cppcheck-suppress misra-c2012-11.4
+		registers.base = (Mcan_BaseRegisters *)MCAN0_ADDRESS_BASE;
+		// cppcheck-suppress misra-c2012-11.4
+		registers.canDmaBase =
+				(uint32_t *)MCAN0_CHIPCFG_CAN_DMA_ADDRESS_BASE;
+		break;
+
+	case Mcan_Id_1:
+		// cppcheck-suppress misra-c2012-11.4
+		registers.base = (Mcan_BaseRegisters *)MCAN1_ADDRESS_BASE;
+		// cppcheck-suppress misra-c2012-11.4
+		registers.canDmaBase =
+				(uint32_t *)MCAN1_CHIPCFG_CAN_DMA_ADDRESS_BASE;
+		break;
+	}
+
+	return registers;
 }
 
 void
-Mcan_init(const Mcan_Id id, Mcan *const mcan)
+Mcan_init(Mcan *const mcan, const Mcan_Registers regs)
 {
-	if (!verifyMcanId(id))
-		assert("Incorrect Mcan ID" && false);
 	assert(mcan != NULL);
-	memset(mcan, 0, sizeof(Mcan));
 
-	mcan->id = id;
-
-	if (id == Mcan_Id_0)
-		mcan->reg = (Mcan_Registers *)MCAN0_ADDRESS_BASE;
-	else if (id == Mcan_Id_1)
-		mcan->reg = (Mcan_Registers *)MCAN1_ADDRESS_BASE;
+	(void)memset(mcan, 0, sizeof(Mcan));
+	mcan->reg = regs;
 }
 
-static uint8_t
+static Mcan_DataLengthRaw
 decodeElementSizeInBytes(const Mcan_ElementSize size)
 {
 	switch (size) {
-	case Mcan_ElementSize_8: return 8;
-	case Mcan_ElementSize_12: return 12;
-	case Mcan_ElementSize_16: return 16;
-	case Mcan_ElementSize_20: return 20;
-	case Mcan_ElementSize_24: return 24;
-	case Mcan_ElementSize_32: return 32;
-	case Mcan_ElementSize_48: return 48;
-	case Mcan_ElementSize_64: return 64;
+	case Mcan_ElementSize_8: return Mcan_DataLengthRaw_8;
+	case Mcan_ElementSize_12: return Mcan_DataLengthRaw_12;
+	case Mcan_ElementSize_16: return Mcan_DataLengthRaw_16;
+	case Mcan_ElementSize_20: return Mcan_DataLengthRaw_20;
+	case Mcan_ElementSize_24: return Mcan_DataLengthRaw_24;
+	case Mcan_ElementSize_32: return Mcan_DataLengthRaw_32;
+	case Mcan_ElementSize_48: return Mcan_DataLengthRaw_48;
+	case Mcan_ElementSize_64: return Mcan_DataLengthRaw_64;
+	case Mcan_ElementSize_Invalid: break;
 	}
 
-	assert(0);
-	return 0;
+	return Mcan_DataLengthRaw_Invalid;
 }
 
 static uint8_t
 decodeTxElementSizeInBytes(const Mcan_ElementSize size)
 {
-	return (uint8_t)(decodeElementSizeInBytes(size)
+	const Mcan_DataLengthRaw elementSize = decodeElementSizeInBytes(size);
+	return (uint8_t)((uint32_t)elementSize
 			+ (MCAN_TXELEMENT_DATA_WORD * sizeof(uint32_t)));
 }
 
 static uint8_t
 decodeRxElementSizeInBytes(const Mcan_ElementSize size)
 {
-	return (uint8_t)(decodeElementSizeInBytes(size)
+	const Mcan_DataLengthRaw elementSize = decodeElementSizeInBytes(size);
+	return (uint8_t)((uint32_t)elementSize
 			+ (MCAN_RXELEMENT_DATA_WORD * sizeof(uint32_t)));
 }
 
@@ -87,71 +105,58 @@ static void
 setMsgRamBaseAddress(Mcan *const mcan, const Mcan_Config *const config)
 {
 	mcan->msgRamBaseAddress = config->msgRamBaseAddress;
-	uint32_t *baseAddrRegister;
-
-	switch (mcan->id) {
-	case Mcan_Id_0:
-		baseAddrRegister = (uint32_t *)MATRIX_CCFG_CAN0_ADDR;
-		*baseAddrRegister &= ~MATRIX_CCFG_CAN0_CAN0DMABA_MASK;
-		*baseAddrRegister |= (uint32_t)mcan->msgRamBaseAddress
-				& MATRIX_CCFG_CAN0_CAN0DMABA_MASK;
-		return;
-	case Mcan_Id_1:
-		baseAddrRegister = (uint32_t *)MATRIX_CCFG_SYSIO_ADDR;
-		*baseAddrRegister &= ~MATRIX_CCFG_SYSIO_CAN1DMABA_MASK;
-		*baseAddrRegister |= (uint32_t)mcan->msgRamBaseAddress
-				& MATRIX_CCFG_SYSIO_CAN1DMABA_MASK;
-		return;
-	default: return;
-	}
+	// cppcheck-suppress misra-c2012-11.4
+	const uint32_t addressMsb =
+			(uint32_t)(config->msgRamBaseAddress) >> 16u;
+	SET_FIELD_VALUE(MCAN_CHIPCFG_CANXDMABA, mcan->reg.canDmaBase,
+			addressMsb);
 }
 
 static bool
 setPowerDownMode(Mcan *const mcan, const uint32_t timeoutLimit,
-		int *const errCode)
+		ErrorCode *const errCode)
 {
-	uint32_t timeout = timeoutLimit;
+	mcan->reg.base->cccr |= MCAN_CCCR_CSR_MASK;
 
-	mcan->reg->cccr |= MCAN_CCCR_CSR_MASK;
-
-	while (((mcan->reg->cccr & MCAN_CCCR_CSA_MASK) == 0u) && (timeout > 0u))
-		timeout--;
-
-	if (timeout == 0u)
+	if (!waitForRegisterWithTimeout(&mcan->reg.base->cccr,
+			    MCAN_CCCR_CSA_MASK, timeoutLimit))
 		return returnError(errCode,
-				Mcan_ErrorCodes_ClockStopRequestTimeout);
+				Mcan_ErrorCode_ClockStopRequestTimeout);
 
 	return true;
 }
 
 static bool
 setMode(Mcan *const mcan, const Mcan_Config *const config,
-		const uint32_t timeoutLimit, int *const errCode)
+		const uint32_t timeoutLimit, ErrorCode *const errCode)
 {
+	if (config->isFdEnabled)
+		mcan->reg.base->cccr |= MCAN_CCCR_FDOE_MASK;
+
 	switch (config->mode) {
-	case Mcan_Mode_Normal: break;
+	case Mcan_Mode_Normal: return true;
 	case Mcan_Mode_AutomaticRetransmissionDisabled:
-		mcan->reg->cccr |= MCAN_CCCR_DAR_MASK;
-		break;
-	case Mcan_Mode_Restricted: mcan->reg->cccr |= MCAN_CCCR_ASM_MASK; break;
+		mcan->reg.base->cccr |= MCAN_CCCR_DAR_MASK;
+		return true;
+	case Mcan_Mode_Restricted:
+		mcan->reg.base->cccr |= MCAN_CCCR_ASM_MASK;
+		return true;
 	case Mcan_Mode_BusMonitoring:
-		mcan->reg->cccr |= MCAN_CCCR_MON_MASK;
-		break;
+		mcan->reg.base->cccr |= MCAN_CCCR_MON_MASK;
+		return true;
 	case Mcan_Mode_PowerDown:
 		if (!setPowerDownMode(mcan, timeoutLimit, errCode))
 			return false;
-		break;
+		return true;
 	case Mcan_Mode_InternalLoopBackTest:
-		mcan->reg->cccr |= MCAN_CCCR_TEST_MASK;
-		mcan->reg->cccr |= MCAN_CCCR_MON_MASK;
-		mcan->reg->test = MCAN_TEST_LBCK_MASK;
-		break;
+		mcan->reg.base->cccr |= MCAN_CCCR_TEST_MASK;
+		mcan->reg.base->cccr |= MCAN_CCCR_MON_MASK;
+		mcan->reg.base->test = MCAN_TEST_LBCK_MASK;
+		return true;
+	case Mcan_Mode_Invalid: break;
 	}
 
-	if (config->isFdEnabled)
-		mcan->reg->cccr |= MCAN_CCCR_FDOE_MASK;
-
-	return true;
+	return returnError(errCode, Mcan_ErrorCode_ModeInvalid);
 }
 
 static void
@@ -160,18 +165,14 @@ setNominalTiming(Mcan *const mcan, const Mcan_Config *const config)
 	const Mcan_BitTiming *timing = &config->nominalBitTiming;
 	assert(timing->timeSegmentBeforeSamplePoint > 0u);
 
-	mcan->reg->nbtp = ((uint32_t)(timing->bitRatePrescaler
-					   << MCAN_NBTP_NBRP_OFFSET)
-					  & MCAN_NBTP_NBRP_MASK)
-			| ((uint32_t)(timing->timeSegmentAfterSamplePoint
-					   << MCAN_NBTP_NTSEG2_OFFSET)
-					& MCAN_NBTP_NTSEG2_MASK)
-			| ((uint32_t)(timing->timeSegmentBeforeSamplePoint
-					   << MCAN_NBTP_NTSEG1_OFFSET)
-					& MCAN_NBTP_NTSEG1_MASK)
-			| ((uint32_t)(timing->synchronizationJump
-					   << MCAN_NBTP_NSJW_OFFSET)
-					& MCAN_NBTP_NSJW_MASK);
+	mcan->reg.base->nbtp = BIT_FIELD_VALUE(MCAN_NBTP_NBRP,
+					       timing->bitRatePrescaler)
+			| BIT_FIELD_VALUE(MCAN_NBTP_NTSEG2,
+					timing->timeSegmentAfterSamplePoint)
+			| BIT_FIELD_VALUE(MCAN_NBTP_NTSEG1,
+					timing->timeSegmentBeforeSamplePoint)
+			| BIT_FIELD_VALUE(MCAN_NBTP_NSJW,
+					timing->synchronizationJump);
 }
 
 static void
@@ -180,66 +181,49 @@ setDataTiming(Mcan *const mcan, const Mcan_Config *const config)
 	const Mcan_BitTiming *timing = &config->dataBitTiming;
 	assert(timing->timeSegmentBeforeSamplePoint > 0u);
 
-	mcan->reg->dbtp = ((uint32_t)(timing->bitRatePrescaler
-					   << MCAN_DBTP_DBRP_OFFSET)
-					  & MCAN_DBTP_DBRP_MASK)
-			| ((uint32_t)(timing->timeSegmentAfterSamplePoint
-					   << MCAN_DBTP_DTSEG2_OFFSET)
-					& MCAN_DBTP_DTSEG2_MASK)
-			| ((uint32_t)(timing->timeSegmentBeforeSamplePoint
-					   << MCAN_DBTP_DTSEG1_OFFSET)
-					& MCAN_DBTP_DTSEG1_MASK)
-			| ((uint32_t)(timing->synchronizationJump
-					   << MCAN_DBTP_DSJW_OFFSET)
-					& MCAN_DBTP_DSJW_MASK);
+	mcan->reg.base->dbtp = BIT_FIELD_VALUE(MCAN_DBTP_DBRP,
+					       timing->bitRatePrescaler)
+			| BIT_FIELD_VALUE(MCAN_DBTP_DTSEG2,
+					timing->timeSegmentAfterSamplePoint)
+			| BIT_FIELD_VALUE(MCAN_DBTP_DTSEG1,
+					timing->timeSegmentBeforeSamplePoint)
+			| BIT_FIELD_VALUE(MCAN_DBTP_DSJW,
+					timing->synchronizationJump);
 }
 
 static void
-setTransmitterDelayCompensation(
-		Mcan *const mcan, const Mcan_Config *const config)
+setTransmitterDelayCompensation(Mcan *const mcan,
+		const Mcan_TransmitterDelayCompensation *const config)
 {
-	if (config->transmitterDelayCompensation.isEnabled)
-		mcan->reg->dbtp |= MCAN_DBTP_TDC_MASK;
-	else
-		mcan->reg->dbtp &= ~MCAN_DBTP_TDC_MASK;
+	changeBitAtOffset(&mcan->reg.base->dbtp, MCAN_DBTP_TDC_OFFSET,
+			config->isEnabled);
 
-	mcan->reg->tdcr =
-			((uint32_t)(config->transmitterDelayCompensation.filter
-					 << MCAN_TDCR_TDCF_OFFSET)
-					& MCAN_TDCR_TDCF_MASK)
-			| ((uint32_t)(config->transmitterDelayCompensation
-							   .offset
-					   << MCAN_TDCR_TDCO_OFFSET)
-					& MCAN_TDCR_TDCO_MASK);
+	mcan->reg.base->tdcr = BIT_FIELD_VALUE(MCAN_TDCR_TDCF, config->filter)
+			| BIT_FIELD_VALUE(MCAN_TDCR_TDCO, config->offset);
 }
 
 static void
 setTimestamp(Mcan *const mcan, const Mcan_Config *const config)
 {
-	mcan->reg->tscc = (((uint32_t)config->timestampClk
-					   << MCAN_TSCC_TSS_OFFSET)
-					  & MCAN_TSCC_TSS_MASK)
-			| (((uint32_t)config->timestampTimeoutPrescaler
-					   << MCAN_TSCC_TCP_OFFSET)
-					& MCAN_TSCC_TCP_MASK);
+	mcan->reg.base->tscc =
+			BIT_FIELD_VALUE(MCAN_TSCC_TSS, config->timestampClk)
+			| BIT_FIELD_VALUE(MCAN_TSCC_TCP,
+					config->timestampTimeoutPrescaler);
 
 	// Clear the timestamp counter.
-	mcan->reg->tscv = 0;
+	mcan->reg.base->tscv = 0u;
 }
 
 static void
-setTimeout(Mcan *const mcan, const Mcan_Config *const config)
+setTimeout(Mcan *const mcan, const Mcan_TimeoutConfig *const config)
 {
-	if (config->isTimeoutEnabled) {
-		mcan->reg->tocc = MCAN_TOCC_ETOC_MASK
-				| (((uint32_t)config->timeoutType
-						   << MCAN_TOCC_TOS_OFFSET)
-						& MCAN_TOCC_TOS_MASK)
-				| (((uint32_t)config->timeoutPeriod
-						   << MCAN_TOCC_TOP_OFFSET)
-						& MCAN_TOCC_TOP_MASK);
+	if (config->isEnabled) {
+		mcan->reg.base->tocc = MCAN_TOCC_ETOC_MASK
+				| BIT_FIELD_VALUE(MCAN_TOCC_TOS, config->type)
+				| BIT_FIELD_VALUE(
+						MCAN_TOCC_TOP, config->period);
 	} else {
-		mcan->reg->tocc = 0;
+		mcan->reg.base->tocc = 0u;
 	}
 }
 
@@ -247,24 +231,22 @@ static void
 setStandardIdFiltering(Mcan *const mcan, const Mcan_Config *const config)
 {
 	if (config->standardIdFilter.isIdRejected) {
-		mcan->reg->gfc |= MCAN_GFC_RRFS_MASK;
-		mcan->reg->sidfc = 0;
+		mcan->reg.base->gfc |= MCAN_GFC_RRFS_MASK;
+		mcan->reg.base->sidfc = 0u;
 		mcan->rxStdFilterAddress = NULL;
-		mcan->rxStdFilterSize = 0;
+		mcan->rxStdFilterSize = 0u;
 	} else {
-		mcan->reg->gfc |=
-				((uint32_t)config->standardIdFilter
-								.nonMatchingPolicy
-						<< MCAN_GFC_ANFS_OFFSET)
-				& MCAN_GFC_ANFS_MASK;
+		mcan->reg.base->gfc |= BIT_FIELD_VALUE(MCAN_GFC_ANFS,
+				config->standardIdFilter.nonMatchingPolicy);
+		// cppcheck-suppress misra-c2012-11.4
 		const uint32_t filterListAddress =
 				(uint32_t)config->standardIdFilter
 						.filterListAddress;
-		mcan->reg->sidfc = (filterListAddress & MCAN_SIDFC_FLSSA_MASK)
-				| ((uint32_t)(config->standardIdFilter
-								   .filterListSize
-						   << MCAN_SIDFC_LSS_OFFSET)
-						& MCAN_SIDFC_LSS_MASK);
+		mcan->reg.base->sidfc =
+				(filterListAddress & MCAN_SIDFC_FLSSA_MASK)
+				| BIT_FIELD_VALUE(MCAN_SIDFC_LSS,
+						config->standardIdFilter
+								.filterListSize);
 		mcan->rxStdFilterAddress =
 				config->standardIdFilter.filterListAddress;
 		mcan->rxStdFilterSize = config->standardIdFilter.filterListSize;
@@ -275,24 +257,22 @@ static void
 setExtendedIdFiltering(Mcan *const mcan, const Mcan_Config *const config)
 {
 	if (config->extendedIdFilter.isIdRejected) {
-		mcan->reg->gfc |= MCAN_GFC_RRFE_MASK;
-		mcan->reg->xidfc = 0;
+		mcan->reg.base->gfc |= MCAN_GFC_RRFE_MASK;
+		mcan->reg.base->xidfc = 0u;
 		mcan->rxExtFilterAddress = NULL;
-		mcan->rxExtFilterSize = 0;
+		mcan->rxExtFilterSize = 0u;
 	} else {
-		mcan->reg->gfc |=
-				((uint32_t)config->extendedIdFilter
-								.nonMatchingPolicy
-						<< MCAN_GFC_ANFE_OFFSET)
-				& MCAN_GFC_ANFE_MASK;
+		mcan->reg.base->gfc |= BIT_FIELD_VALUE(MCAN_GFC_ANFE,
+				config->extendedIdFilter.nonMatchingPolicy);
+		// cppcheck-suppress misra-c2012-11.4
 		const uint32_t filterListAddress =
 				(uint32_t)config->extendedIdFilter
 						.filterListAddress;
-		mcan->reg->xidfc = (filterListAddress & MCAN_XIDFC_FLESA_MASK)
-				| ((uint32_t)(config->extendedIdFilter
-								   .filterListSize
-						   << MCAN_XIDFC_LSE_OFFSET)
-						& MCAN_XIDFC_LSE_MASK);
+		mcan->reg.base->xidfc =
+				(filterListAddress & MCAN_XIDFC_FLESA_MASK)
+				| BIT_FIELD_VALUE(MCAN_XIDFC_LSE,
+						config->extendedIdFilter
+								.filterListSize);
 		mcan->rxExtFilterAddress =
 				config->extendedIdFilter.filterListAddress;
 		mcan->rxExtFilterSize = config->extendedIdFilter.filterListSize;
@@ -302,236 +282,220 @@ setExtendedIdFiltering(Mcan *const mcan, const Mcan_Config *const config)
 static void
 setRxFifo0(Mcan *const mcan, const Mcan_Config *const config)
 {
-	mcan->reg->rxesc &= ~MCAN_RXESC_F0DS_MASK;
+	mcan->reg.base->rxesc &= ~MCAN_RXESC_F0DS_MASK;
 
 	if (config->rxFifo0.isEnabled) {
+		// cppcheck-suppress misra-c2012-11.4
 		const uint32_t startAddress =
 				(uint32_t)config->rxFifo0.startAddress;
-		mcan->reg->rxf0c = (startAddress & MCAN_RXF0C_F0SA_MASK)
-				| (((uint32_t)config->rxFifo0.size
-						   << MCAN_RXF0C_F0S_OFFSET)
-						& MCAN_RXF0C_F0S_MASK)
-				| (((uint32_t)config->rxFifo0.watermark
-						   << MCAN_RXF0C_F0WM_OFFSET)
-						& MCAN_RXF0C_F0WM_MASK)
-				| (((uint32_t)config->rxFifo0.mode
-						   << MCAN_RXF0C_F0OM_OFFSET)
-						& MCAN_RXF0C_F0OM_MASK);
-		mcan->reg->rxesc |= (((uint32_t)config->rxFifo0.elementSize
-						     << MCAN_RXESC_F0DS_OFFSET)
-				& MCAN_RXESC_F0DS_MASK);
-		mcan->rxFifo0Address = config->rxFifo0.startAddress;
-		mcan->rxFifo0Size = config->rxFifo0.size;
-		mcan->rxFifo0ElementSize = decodeRxElementSizeInBytes(
+		mcan->reg.base->rxf0c = (startAddress & MCAN_RXF0C_F0SA_MASK)
+				| BIT_FIELD_VALUE(MCAN_RXF0C_F0S,
+						config->rxFifo0.size)
+				| BIT_FIELD_VALUE(MCAN_RXF0C_F0WM,
+						config->rxFifo0.watermark)
+				| BIT_FIELD_VALUE(MCAN_RXF0C_F0OM,
+						config->rxFifo0.mode);
+		mcan->reg.base->rxesc |= BIT_FIELD_VALUE(
+				MCAN_RXESC_F0DS, config->rxFifo0.elementSize);
+		mcan->rxFifo0.address = config->rxFifo0.startAddress;
+		mcan->rxFifo0.size = config->rxFifo0.size;
+		mcan->rxFifo0.elementSize = decodeRxElementSizeInBytes(
 				config->rxFifo0.elementSize);
 	} else {
-		mcan->reg->rxf0c = 0;
-		mcan->rxFifo0Address = NULL;
-		mcan->rxFifo0Size = 0;
-		mcan->rxFifo0ElementSize = 0;
+		mcan->reg.base->rxf0c = 0u;
+		mcan->rxFifo0.address = NULL;
+		mcan->rxFifo0.size = 0u;
+		mcan->rxFifo0.elementSize = 0u;
 	}
 }
 
 static void
 setRxFifo1(Mcan *const mcan, const Mcan_Config *const config)
 {
-	mcan->reg->rxesc &= ~MCAN_RXESC_F1DS_MASK;
+	mcan->reg.base->rxesc &= ~MCAN_RXESC_F1DS_MASK;
 
 	if (config->rxFifo1.isEnabled) {
+		// cppcheck-suppress misra-c2012-11.4
 		const uint32_t startAddress =
 				(uint32_t)config->rxFifo1.startAddress;
-		mcan->reg->rxf1c = (startAddress & MCAN_RXF1C_F1SA_MASK)
-				| (((uint32_t)config->rxFifo1.size
-						   << MCAN_RXF1C_F1S_OFFSET)
-						& MCAN_RXF1C_F1S_MASK)
-				| (((uint32_t)config->rxFifo1.watermark
-						   << MCAN_RXF1C_F1WM_OFFSET)
-						& MCAN_RXF1C_F1WM_MASK)
-				| (((uint32_t)config->rxFifo1.mode
-						   << MCAN_RXF1C_F1OM_OFFSET)
-						& MCAN_RXF1C_F1OM_MASK);
-		mcan->reg->rxesc |= (((uint32_t)config->rxFifo1.elementSize
-						     << MCAN_RXESC_F1DS_OFFSET)
-				& MCAN_RXESC_F1DS_MASK);
-		mcan->rxFifo1Address = config->rxFifo1.startAddress;
-		mcan->rxFifo1Size = config->rxFifo1.size;
-		mcan->rxFifo1ElementSize = decodeRxElementSizeInBytes(
+		mcan->reg.base->rxf1c = (startAddress & MCAN_RXF1C_F1SA_MASK)
+				| BIT_FIELD_VALUE(MCAN_RXF1C_F1S,
+						config->rxFifo1.size)
+				| BIT_FIELD_VALUE(MCAN_RXF1C_F1WM,
+						config->rxFifo1.watermark)
+				| BIT_FIELD_VALUE(MCAN_RXF1C_F1OM,
+						config->rxFifo1.mode);
+		mcan->reg.base->rxesc |= BIT_FIELD_VALUE(
+				MCAN_RXESC_F1DS, config->rxFifo1.elementSize);
+		mcan->rxFifo1.address = config->rxFifo1.startAddress;
+		mcan->rxFifo1.size = config->rxFifo1.size;
+		mcan->rxFifo1.elementSize = decodeRxElementSizeInBytes(
 				config->rxFifo1.elementSize);
 	} else {
-		mcan->reg->rxf1c = 0;
-		mcan->rxFifo1Address = NULL;
-		mcan->rxFifo1Size = 0;
-		mcan->rxFifo1ElementSize = 0;
+		mcan->reg.base->rxf1c = 0u;
+		mcan->rxFifo1.address = NULL;
+		mcan->rxFifo1.size = 0u;
+		mcan->rxFifo1.elementSize = 0u;
 	}
 }
 
 static void
 setRxBuffer(Mcan *const mcan, const Mcan_Config *const config)
 {
-	mcan->reg->rxbc = (uint32_t)config->rxBuffer.startAddress
+	// cppcheck-suppress misra-c2012-11.4
+	mcan->reg.base->rxbc = (uint32_t)config->rxBuffer.startAddress
 			& MCAN_RXBC_RBSA_MASK;
-	mcan->reg->rxesc &= ~MCAN_RXESC_RBDS_MASK;
-	mcan->reg->rxesc |= (((uint32_t)config->rxBuffer.elementSize
-					     << MCAN_RXESC_RBDS_OFFSET)
-			& MCAN_RXESC_RBDS_MASK);
+	SET_FIELD_VALUE(MCAN_RXESC_RBDS, &mcan->reg.base->rxesc,
+			config->rxBuffer.elementSize);
 	mcan->rxBufferAddress = config->rxBuffer.startAddress;
 	mcan->rxBufferElementSize = decodeRxElementSizeInBytes(
 			config->rxBuffer.elementSize);
 }
 
-static void
+static bool
 setTxBuffer(Mcan *const mcan, const Mcan_Config *const config)
 {
 	if (config->txBuffer.isEnabled) {
+		const uint8_t txElementSize = decodeTxElementSizeInBytes(
+				config->txBuffer.elementSize);
+		if (txElementSize == MCAN_TXELEMENT_SIZE_INVALID)
+			return false;
+
 		assert((config->txBuffer.bufferSize
 				       + config->txBuffer.queueSize)
 				<= 32u);
 
+		// cppcheck-suppress misra-c2012-11.4
 		const uint32_t startAddress =
 				(uint32_t)config->txBuffer.startAddress;
 
-		mcan->reg->txbc = (startAddress & MCAN_TXBC_TBSA_MASK)
-				| (((uint32_t)config->txBuffer.bufferSize
-						   << MCAN_TXBC_NDTB_OFFSET)
-						& MCAN_TXBC_NDTB_MASK)
-				| (((uint32_t)config->txBuffer.queueSize
-						   << MCAN_TXBC_TFQS_OFFSET)
-						& MCAN_TXBC_TFQS_MASK)
-				| (((uint32_t)config->txBuffer.queueType
-						   << MCAN_TXBC_TFQM_OFFSET)
-						& MCAN_TXBC_TFQM_MASK);
-		mcan->reg->txesc = (((uint32_t)config->txBuffer.elementSize
-						    << MCAN_TXESC_TBDS_OFFSET)
-				& MCAN_TXESC_TBDS_MASK);
-		mcan->txBufferAddress = config->txBuffer.startAddress;
-		mcan->txBufferSize = config->txBuffer.bufferSize;
-		mcan->txQueueAddress = config->txBuffer.startAddress
-				+ (((uint32_t)mcan->txElementSize
-						   * config->txBuffer.bufferSize)
-						/ sizeof(uint32_t));
-		mcan->txQueueSize = config->txBuffer.queueSize;
-		mcan->txElementSize = decodeTxElementSizeInBytes(
-				config->txBuffer.elementSize);
+		mcan->reg.base->txbc = (startAddress & MCAN_TXBC_TBSA_MASK)
+				| BIT_FIELD_VALUE(MCAN_TXBC_NDTB,
+						config->txBuffer.bufferSize)
+				| BIT_FIELD_VALUE(MCAN_TXBC_TFQS,
+						config->txBuffer.queueSize)
+				| BIT_FIELD_VALUE(MCAN_TXBC_TFQM,
+						config->txBuffer.queueType);
+		mcan->reg.base->txesc = BIT_FIELD_VALUE(
+				MCAN_TXESC_TBDS, config->txBuffer.elementSize);
+		mcan->tx.bufferAddress = config->txBuffer.startAddress;
+		mcan->tx.bufferSize = config->txBuffer.bufferSize;
+		mcan->tx.queueAddress =
+				&config->txBuffer.startAddress
+						 [(txElementSize
+								  * (uint32_t)config
+										  ->txBuffer
+										  .bufferSize)
+								 / sizeof(uint32_t)];
+		mcan->tx.queueSize = config->txBuffer.queueSize;
+		mcan->tx.elementSize = txElementSize;
 	} else {
-		mcan->reg->txbc = 0;
-		mcan->reg->txesc = 0;
-		mcan->txBufferAddress = NULL;
-		mcan->txBufferSize = 0;
-		mcan->txQueueAddress = NULL;
-		mcan->txQueueSize = 0;
-		mcan->txElementSize = 0;
+		mcan->reg.base->txbc = 0u;
+		mcan->reg.base->txesc = 0u;
+		mcan->tx.bufferAddress = NULL;
+		mcan->tx.bufferSize = 0u;
+		mcan->tx.queueAddress = NULL;
+		mcan->tx.queueSize = 0u;
+		mcan->tx.elementSize = 0u;
 	}
+
+	return true;
 }
 
 static void
 setTxEventFifo(Mcan *const mcan, const Mcan_Config *const config)
 {
 	if (config->txEventFifo.isEnabled) {
+		// cppcheck-suppress misra-c2012-11.4
 		const uint32_t startAddress =
 				(uint32_t)config->txEventFifo.startAddress;
-		mcan->reg->txefc = (startAddress & MCAN_TXEFC_EFSA_MASK)
-				| (((uint32_t)config->txEventFifo.size
-						   << MCAN_TXEFC_EFS_OFFSET)
-						& MCAN_TXEFC_EFS_MASK)
-				| (((uint32_t)config->txEventFifo.watermark
-						   << MCAN_TXEFC_EFWM_OFFSET)
-						& MCAN_TXEFC_EFWM_MASK);
+		mcan->reg.base->txefc = (startAddress & MCAN_TXEFC_EFSA_MASK)
+				| BIT_FIELD_VALUE(MCAN_TXEFC_EFS,
+						config->txEventFifo.size)
+				| BIT_FIELD_VALUE(MCAN_TXEFC_EFWM,
+						config->txEventFifo.watermark);
 		mcan->txEventFifoAddress = config->txEventFifo.startAddress;
 		mcan->txEventFifoSize = config->txEventFifo.size;
 	} else {
-		mcan->reg->txefc = 0;
+		mcan->reg.base->txefc = 0u;
 		mcan->txEventFifoAddress = NULL;
-		mcan->txEventFifoSize = 0;
+		mcan->txEventFifoSize = 0u;
 	}
 }
 
 static void
 setInterrupts(Mcan *const mcan, const Mcan_Config *const config)
 {
-	for (uint32_t i = 0; i < (uint32_t)Mcan_Interrupt_Count; i++) {
-		if ((i == (uint32_t)Mcan_Interrupt_Reserved1)
-				|| (i == (uint32_t)Mcan_Interrupt_Reserved2))
-			continue;
+	for (uint32_t i = 0u; i < (uint32_t)Mcan_Interrupt_Count; i++) {
+		if ((i != (uint32_t)Mcan_Interrupt_Reserved1)
+				&& (i != (uint32_t)Mcan_Interrupt_Reserved2)) {
+			mcan->reg.base->ir = shiftBitLeft(true, i);
 
-		uint32_t mask = 1u << i;
-		mcan->reg->ir = mask;
-
-		if (config->interrupts[i].isEnabled)
-			mcan->reg->ie |= mask;
-		else
-			mcan->reg->ie &= ~mask;
-
-		if (config->interrupts[i].line == Mcan_InterruptLine_0)
-			mcan->reg->ils &= ~mask;
-		else
-			mcan->reg->ils |= mask;
+			changeBitAtOffset(&mcan->reg.base->ie, i,
+					config->interrupts[i].isEnabled);
+			changeBitAtOffset(&mcan->reg.base->ils, i,
+					config->interrupts[i].line
+							!= Mcan_InterruptLine_0);
+		}
 	}
-	mcan->reg->ile = 0;
-	if (config->isLine0InterruptEnabled)
-		mcan->reg->ile |= MCAN_ILE_EINT0_MASK;
-	if (config->isLine1InterruptEnabled)
-		mcan->reg->ile |= MCAN_ILE_EINT1_MASK;
 
-	mcan->reg->txbtie = 0;
-	mcan->reg->txbcie = 0;
+	mcan->reg.base->ile = BIT_VALUE(MCAN_ILE_EINT0,
+					      config->isLine0InterruptEnabled)
+			| BIT_VALUE(MCAN_ILE_EINT1,
+					config->isLine1InterruptEnabled);
+
+	mcan->reg.base->txbtie = 0u;
+	mcan->reg.base->txbcie = 0u;
 }
 
 bool
 Mcan_setConfig(Mcan *const mcan, const Mcan_Config *const config,
-		const uint32_t timeoutLimit, int *const errCode)
+		const uint32_t timeoutLimit, ErrorCode *const errCode)
 {
 	setMsgRamBaseAddress(mcan, config);
 
-	mcan->reg->cccr = MCAN_CCCR_INIT_MASK;
+	mcan->reg.base->cccr = MCAN_CCCR_INIT_MASK;
 
-	uint32_t timeout = timeoutLimit;
-	while (((mcan->reg->cccr & MCAN_CCCR_INIT_MASK) == 0u)
-			&& (timeout > 0u))
-		timeout--;
-
-	if (timeout == 0u)
+	if (!waitForRegisterWithTimeout(&mcan->reg.base->cccr,
+			    MCAN_CCCR_INIT_MASK, timeoutLimit))
 		return returnError(errCode,
-				Mcan_ErrorCodes_InitializationStartTimeout);
-
-	while (((mcan->reg->cccr & MCAN_CCCR_CSA_MASK) == MCAN_CCCR_CSA_MASK)
-			&& (timeout > 0u))
-		timeout--;
-
-	if (timeout == 0u)
-		return returnError(errCode,
-				Mcan_ErrorCodes_ClockStopRequestTimeout);
+				Mcan_ErrorCode_InitializationStartTimeout);
 
 	// Enable write-protected registers.
-	mcan->reg->cccr |= MCAN_CCCR_CCE_MASK;
+	mcan->reg.base->cccr |= MCAN_CCCR_CCE_MASK;
 	// Clear the CCCR register.
-	mcan->reg->cccr = MCAN_CCCR_CCE_MASK | MCAN_CCCR_INIT_MASK;
-	mcan->reg->gfc = 0;
+	mcan->reg.base->cccr =
+			(uint32_t)(MCAN_CCCR_CCE_MASK | MCAN_CCCR_INIT_MASK);
+	mcan->reg.base->gfc = 0u;
 
-	if (!setMode(mcan, config, timeout, errCode))
+	if (!setMode(mcan, config, timeoutLimit, errCode))
 		return false;
+
 	setNominalTiming(mcan, config);
 	if (config->isFdEnabled) {
 		setDataTiming(mcan, config);
-		setTransmitterDelayCompensation(mcan, config);
+		setTransmitterDelayCompensation(
+				mcan, &config->transmitterDelayCompensation);
 	}
 	setTimestamp(mcan, config);
-	setTimeout(mcan, config);
+	setTimeout(mcan, &config->timeout);
 	setStandardIdFiltering(mcan, config);
 	setExtendedIdFiltering(mcan, config);
 	setRxFifo0(mcan, config);
 	setRxFifo1(mcan, config);
 	setRxBuffer(mcan, config);
-	setTxBuffer(mcan, config);
+	if (!setTxBuffer(mcan, config))
+		return returnError(errCode, Mcan_ErrorCode_ElementSizeInvalid);
 	setTxEventFifo(mcan, config);
 	setInterrupts(mcan, config);
 
-	mcan->reg->rwd = (uint32_t)(config->wdtCounter << MCAN_RWD_WDC_OFFSET)
-			& MCAN_RWD_WDC_MASK;
+	mcan->reg.base->rwd = BIT_FIELD_VALUE(MCAN_RWD_WDC, config->wdtCounter);
 
 	// SAE J1939 masking is not supported
-	mcan->reg->xidam = 0x1FFFFFFF;
+	// Set all bits of extended ID mask to ones
+	mcan->reg.base->xidam = MCAN_XIDAM_EIDM_MASK;
 
-	mcan->reg->cccr &= ~MCAN_CCCR_INIT_MASK;
+	mcan->reg.base->cccr &= ~MCAN_CCCR_INIT_MASK;
 
 	return true;
 }
@@ -545,55 +509,81 @@ getMsgRamBaseAddress(const Mcan *const mcan, Mcan_Config *const config)
 static void
 getMode(const Mcan *const mcan, Mcan_Config *const config)
 {
-	if (((mcan->reg->cccr & MCAN_CCCR_TEST_MASK) != 0u)
-			&& ((mcan->reg->cccr & MCAN_CCCR_MON_MASK) != 0u)
-			&& ((mcan->reg->test & MCAN_TEST_LBCK_MASK) != 0u))
-		config->mode = Mcan_Mode_InternalLoopBackTest;
-	else if (((mcan->reg->cccr & MCAN_CCCR_CSR_MASK) != 0u)
-			&& ((mcan->reg->cccr & MCAN_CCCR_CSA_MASK) != 0u))
-		config->mode = Mcan_Mode_PowerDown;
-	else if ((mcan->reg->cccr & MCAN_CCCR_DAR_MASK) != 0u)
-		config->mode = Mcan_Mode_AutomaticRetransmissionDisabled;
-	else if ((mcan->reg->cccr & MCAN_CCCR_ASM_MASK) != 0u)
-		config->mode = Mcan_Mode_Restricted;
-	else if ((mcan->reg->cccr & MCAN_CCCR_MON_MASK) != 0u)
-		config->mode = Mcan_Mode_BusMonitoring;
-	else
-		config->mode = Mcan_Mode_Normal;
+	const uint32_t cccr = mcan->reg.base->cccr;
+	config->isFdEnabled = IS_BIT_SET(MCAN_CCCR_FDOE, cccr);
 
-	config->isFdEnabled = ((mcan->reg->cccr & MCAN_CCCR_FDOE_MASK) != 0u);
+	if (IS_BIT_SET(MCAN_CCCR_INIT, cccr)) {
+		if (IS_BIT_SET(MCAN_CCCR_CSR, cccr)
+				&& IS_BIT_SET(MCAN_CCCR_CSA, cccr))
+			config->mode = Mcan_Mode_PowerDown;
+		else
+			config->mode = Mcan_Mode_Invalid;
+	} else {
+		if (IS_BIT_SET(MCAN_CCCR_CSR, cccr)
+				|| IS_BIT_SET(MCAN_CCCR_CSA, cccr)) {
+			config->mode = Mcan_Mode_Invalid;
+			return;
+		}
+
+		if (IS_BIT_SET(MCAN_CCCR_TEST, cccr)
+				&& IS_BIT_SET(MCAN_CCCR_MON, cccr)) {
+			if (IS_BIT_SET(MCAN_TEST_LBCK, mcan->reg.base->test))
+				config->mode = Mcan_Mode_InternalLoopBackTest;
+			else
+				config->mode = Mcan_Mode_Invalid;
+			return;
+		}
+
+		if (IS_BIT_SET(MCAN_CCCR_MON, cccr)) {
+			config->mode = Mcan_Mode_BusMonitoring;
+			return;
+		}
+
+		if (IS_BIT_SET(MCAN_CCCR_TEST, cccr)) {
+			config->mode = Mcan_Mode_Invalid;
+			return;
+		}
+
+		if (IS_BIT_SET(MCAN_CCCR_ASM, cccr)) {
+			config->mode = Mcan_Mode_Restricted;
+			return;
+		}
+
+		if (IS_BIT_SET(MCAN_CCCR_DAR, cccr)) {
+			config->mode = Mcan_Mode_AutomaticRetransmissionDisabled;
+			return;
+		}
+
+		config->mode = Mcan_Mode_Normal;
+	}
 }
 
 static void
 getNominalTiming(const Mcan *const mcan, Mcan_Config *const config)
 {
-	const uint32_t nbtp = mcan->reg->nbtp;
+	const uint32_t nbtp = mcan->reg.base->nbtp;
 	config->nominalBitTiming.bitRatePrescaler =
-			(nbtp & MCAN_NBTP_NBRP_MASK) >> MCAN_NBTP_NBRP_OFFSET;
-	config->nominalBitTiming.synchronizationJump = (uint8_t)(
-			(nbtp & MCAN_NBTP_NSJW_MASK) >> MCAN_NBTP_NSJW_OFFSET);
+			(uint16_t)GET_FIELD_VALUE(MCAN_NBTP_NBRP, nbtp);
+	config->nominalBitTiming.synchronizationJump =
+			(uint8_t)GET_FIELD_VALUE(MCAN_NBTP_NSJW, nbtp);
 	config->nominalBitTiming.timeSegmentAfterSamplePoint =
-			(nbtp & MCAN_NBTP_NTSEG2_MASK)
-			>> MCAN_NBTP_NTSEG2_OFFSET;
+			(uint8_t)GET_FIELD_VALUE(MCAN_NBTP_NTSEG2, nbtp);
 	config->nominalBitTiming.timeSegmentBeforeSamplePoint =
-			(nbtp & MCAN_NBTP_NTSEG1_MASK)
-			>> MCAN_NBTP_NTSEG1_OFFSET;
+			(uint8_t)GET_FIELD_VALUE(MCAN_NBTP_NTSEG1, nbtp);
 }
 
 static void
 getDataTiming(const Mcan *const mcan, Mcan_Config *const config)
 {
-	const uint32_t dbtp = mcan->reg->dbtp;
+	const uint32_t dbtp = mcan->reg.base->dbtp;
 	config->dataBitTiming.bitRatePrescaler =
-			(dbtp & MCAN_DBTP_DBRP_MASK) >> MCAN_DBTP_DBRP_OFFSET;
-	config->dataBitTiming.synchronizationJump = (uint8_t)(
-			(dbtp & MCAN_DBTP_DSJW_MASK) >> MCAN_DBTP_DSJW_OFFSET);
+			(uint16_t)GET_FIELD_VALUE(MCAN_DBTP_DBRP, dbtp);
+	config->dataBitTiming.synchronizationJump =
+			(uint8_t)GET_FIELD_VALUE(MCAN_DBTP_DSJW, dbtp);
 	config->dataBitTiming.timeSegmentAfterSamplePoint =
-			(dbtp & MCAN_DBTP_DTSEG2_MASK)
-			>> MCAN_DBTP_DTSEG2_OFFSET;
+			(uint8_t)GET_FIELD_VALUE(MCAN_DBTP_DTSEG2, dbtp);
 	config->dataBitTiming.timeSegmentBeforeSamplePoint =
-			(dbtp & MCAN_DBTP_DTSEG1_MASK)
-			>> MCAN_DBTP_DTSEG1_OFFSET;
+			(uint8_t)GET_FIELD_VALUE(MCAN_DBTP_DTSEG1, dbtp);
 }
 
 static void
@@ -601,45 +591,41 @@ getTransmitterDelayCompensation(
 		const Mcan *const mcan, Mcan_Config *const config)
 {
 	config->transmitterDelayCompensation.isEnabled =
-			((mcan->reg->dbtp & MCAN_DBTP_TDC_MASK) != 0u);
+			IS_BIT_SET(MCAN_DBTP_TDC, mcan->reg.base->dbtp);
 
-	const uint32_t tdcr = mcan->reg->tdcr;
+	const uint32_t tdcr = mcan->reg.base->tdcr;
 	config->transmitterDelayCompensation.filter =
-			(tdcr & MCAN_TDCR_TDCF_MASK) >> MCAN_TDCR_TDCF_OFFSET;
+			(uint8_t)GET_FIELD_VALUE(MCAN_TDCR_TDCF, tdcr);
 	config->transmitterDelayCompensation.offset =
-			(tdcr & MCAN_TDCR_TDCO_MASK) >> MCAN_TDCR_TDCO_OFFSET;
+			(uint8_t)GET_FIELD_VALUE(MCAN_TDCR_TDCO, tdcr);
 }
 
 static void
 getTimestamp(const Mcan *const mcan, Mcan_Config *const config)
 {
-	const uint32_t tscc = mcan->reg->tscc;
-	config->timestampClk =
-			(tscc & MCAN_TSCC_TSS_MASK) >> MCAN_TSCC_TSS_OFFSET;
+	const uint32_t tscc = mcan->reg.base->tscc;
+	config->timestampClk = GET_FIELD_VALUE(MCAN_TSCC_TSS, tscc);
 	config->timestampTimeoutPrescaler =
-			(tscc & MCAN_TSCC_TCP_MASK) >> MCAN_TSCC_TCP_OFFSET;
+			(uint8_t)GET_FIELD_VALUE(MCAN_TSCC_TCP, tscc);
 }
 
 static void
-getTimeout(const Mcan *const mcan, Mcan_Config *const config)
+getTimeout(const Mcan *const mcan, Mcan_TimeoutConfig *const config)
 {
-	const uint32_t tscc = mcan->reg->tocc;
-	config->timeoutType =
-			(tscc & MCAN_TOCC_TOS_MASK) >> MCAN_TOCC_TOS_OFFSET;
-	config->timeoutPeriod = (uint16_t)(
-			(tscc & MCAN_TOCC_TOP_MASK) >> MCAN_TOCC_TOP_OFFSET);
-	config->isTimeoutEnabled = ((tscc & MCAN_TOCC_ETOC_MASK) != 0u);
+	const uint32_t tocc = mcan->reg.base->tocc;
+	config->type = GET_FIELD_VALUE(MCAN_TOCC_TOS, tocc);
+	config->period = (uint16_t)GET_FIELD_VALUE(MCAN_TOCC_TOP, tocc);
+	config->isEnabled = IS_BIT_SET(MCAN_TOCC_ETOC, tocc);
 }
 
 static void
 getStandardIdFiltering(const Mcan *const mcan, Mcan_Config *const config)
 {
-	const uint32_t gfc = mcan->reg->gfc;
+	const uint32_t gfc = mcan->reg.base->gfc;
 
-	config->standardIdFilter.isIdRejected =
-			((gfc & MCAN_GFC_RRFS_MASK) != 0u);
+	config->standardIdFilter.isIdRejected = IS_BIT_SET(MCAN_GFC_RRFS, gfc);
 	config->standardIdFilter.nonMatchingPolicy =
-			(gfc & MCAN_GFC_ANFS_MASK) >> MCAN_GFC_ANFS_OFFSET;
+			GET_FIELD_VALUE(MCAN_GFC_ANFS, gfc);
 	config->standardIdFilter.filterListAddress = mcan->rxStdFilterAddress;
 	config->standardIdFilter.filterListSize = mcan->rxStdFilterSize;
 }
@@ -647,12 +633,11 @@ getStandardIdFiltering(const Mcan *const mcan, Mcan_Config *const config)
 static void
 getExtendedIdFiltering(const Mcan *const mcan, Mcan_Config *const config)
 {
-	const uint32_t gfc = mcan->reg->gfc;
+	const uint32_t gfc = mcan->reg.base->gfc;
 
-	config->extendedIdFilter.isIdRejected =
-			((gfc & MCAN_GFC_RRFE_MASK) != 0u);
+	config->extendedIdFilter.isIdRejected = IS_BIT_SET(MCAN_GFC_RRFE, gfc);
 	config->extendedIdFilter.nonMatchingPolicy =
-			(gfc & MCAN_GFC_ANFE_MASK) >> MCAN_GFC_ANFE_OFFSET;
+			GET_FIELD_VALUE(MCAN_GFC_ANFE, gfc);
 	config->extendedIdFilter.filterListAddress = mcan->rxExtFilterAddress;
 	config->extendedIdFilter.filterListSize = mcan->rxExtFilterSize;
 }
@@ -661,72 +646,63 @@ static Mcan_ElementSize
 encodeElementSize(const uint8_t size)
 {
 	switch (size) {
-	case 8: return Mcan_ElementSize_8;
-	case 12: return Mcan_ElementSize_12;
-	case 16: return Mcan_ElementSize_16;
-	case 20: return Mcan_ElementSize_20;
-	case 24: return Mcan_ElementSize_24;
-	case 32: return Mcan_ElementSize_32;
-	case 48: return Mcan_ElementSize_48;
-	case 64: return Mcan_ElementSize_64;
+	case 8u: return Mcan_ElementSize_8;
+	case 12u: return Mcan_ElementSize_12;
+	case 16u: return Mcan_ElementSize_16;
+	case 20u: return Mcan_ElementSize_20;
+	case 24u: return Mcan_ElementSize_24;
+	case 32u: return Mcan_ElementSize_32;
+	case 48u: return Mcan_ElementSize_48;
+	case 64u: return Mcan_ElementSize_64;
+	default: return Mcan_ElementSize_Invalid;
 	}
-
-	assert(0);
-	return 0;
 }
 
 static Mcan_ElementSize
 encodeTxElementSizeInBytes(const uint8_t size)
 {
-	return encodeElementSize((uint8_t)(
-			size - (MCAN_TXELEMENT_DATA_WORD * sizeof(uint32_t))));
+	return encodeElementSize((uint8_t)(size
+			- (MCAN_TXELEMENT_DATA_WORD * sizeof(uint32_t))));
 }
 
 static Mcan_ElementSize
 encodeRxElementSizeInBytes(const uint8_t size)
 {
-	return encodeElementSize((uint8_t)(
-			size - (MCAN_RXELEMENT_DATA_WORD * sizeof(uint32_t))));
+	return encodeElementSize((uint8_t)(size
+			- (MCAN_RXELEMENT_DATA_WORD * sizeof(uint32_t))));
 }
 
 static void
 getRxFifo0(const Mcan *const mcan, Mcan_Config *const config)
 {
-	const uint32_t rxf0c = mcan->reg->rxf0c;
+	const uint32_t rxf0c = mcan->reg.base->rxf0c;
 
 	config->rxFifo0.isEnabled = (rxf0c != 0u);
 
-	if (!config->rxFifo0.isEnabled)
-		return;
-
-	config->rxFifo0.mode = (rxf0c & MCAN_RXF0C_F0OM_MASK)
-			>> MCAN_RXF0C_F0OM_OFFSET;
-	config->rxFifo0.watermark = (rxf0c & MCAN_RXF0C_F0WM_MASK)
-			>> MCAN_RXF0C_F0WM_OFFSET;
-	config->rxFifo0.startAddress = mcan->rxFifo0Address;
-	config->rxFifo0.size = mcan->rxFifo0Size;
+	config->rxFifo0.mode = GET_FIELD_VALUE(MCAN_RXF0C_F0OM, rxf0c);
+	config->rxFifo0.watermark =
+			(uint8_t)GET_FIELD_VALUE(MCAN_RXF0C_F0WM, rxf0c);
+	config->rxFifo0.startAddress = mcan->rxFifo0.address;
+	config->rxFifo0.size = mcan->rxFifo0.size;
 	config->rxFifo0.elementSize =
-			encodeRxElementSizeInBytes(mcan->rxFifo0ElementSize);
+			encodeRxElementSizeInBytes(mcan->rxFifo0.elementSize);
 }
 
 static void
 getRxFifo1(const Mcan *const mcan, Mcan_Config *const config)
 {
-	const uint32_t rxf1c = mcan->reg->rxf1c;
+	const uint32_t rxf1c = mcan->reg.base->rxf1c;
 
 	config->rxFifo1.isEnabled = (rxf1c != 0u);
-
-	if (!config->rxFifo1.isEnabled)
-		return;
 
 	config->rxFifo1.mode = (rxf1c & MCAN_RXF1C_F1OM_MASK)
 			>> MCAN_RXF1C_F1OM_OFFSET;
 	config->rxFifo1.watermark = (rxf1c & MCAN_RXF1C_F1WM_MASK)
 			>> MCAN_RXF1C_F1WM_OFFSET;
-	config->rxFifo1.startAddress = mcan->rxFifo1Address;
-	config->rxFifo1.size = mcan->rxFifo1Size;
+	config->rxFifo1.startAddress = mcan->rxFifo1.address;
+	config->rxFifo1.size = mcan->rxFifo1.size;
 	config->rxFifo1.elementSize =
-			encodeRxElementSizeInBytes(mcan->rxFifo1ElementSize);
+			encodeRxElementSizeInBytes(mcan->rxFifo1.elementSize);
 }
 
 static void
@@ -740,62 +716,55 @@ getRxBuffer(const Mcan *const mcan, Mcan_Config *const config)
 static void
 getTxBuffer(const Mcan *const mcan, Mcan_Config *const config)
 {
-	const uint32_t txbc = mcan->reg->txbc;
+	const uint32_t txbc = mcan->reg.base->txbc;
 
 	config->txBuffer.isEnabled = (txbc != 0u);
 
-	if (!config->txBuffer.isEnabled)
-		return;
-
-	config->txBuffer.startAddress = mcan->txBufferAddress;
-	config->txBuffer.bufferSize = mcan->txBufferSize;
-	config->txBuffer.queueSize = mcan->txQueueSize;
-	config->txBuffer.queueType =
-			(txbc & MCAN_TXBC_TFQM_MASK) >> MCAN_TXBC_TFQM_OFFSET;
+	config->txBuffer.startAddress = mcan->tx.bufferAddress;
+	config->txBuffer.bufferSize = mcan->tx.bufferSize;
+	config->txBuffer.queueSize = mcan->tx.queueSize;
+	config->txBuffer.queueType = GET_FIELD_VALUE(MCAN_TXBC_TFQM, txbc);
 	config->txBuffer.elementSize =
-			encodeTxElementSizeInBytes(mcan->txElementSize);
+			encodeTxElementSizeInBytes(mcan->tx.elementSize);
 }
 
 static void
 getTxEventFifo(const Mcan *const mcan, Mcan_Config *const config)
 {
-	const uint32_t txefc = mcan->reg->txefc;
+	const uint32_t txefc = mcan->reg.base->txefc;
 
 	config->txEventFifo.isEnabled = (txefc != 0u);
 
-	if (!config->txEventFifo.isEnabled)
-		return;
-
 	config->txEventFifo.startAddress = mcan->txEventFifoAddress;
 	config->txEventFifo.size = mcan->txEventFifoSize;
-	config->txEventFifo.watermark = (txefc & MCAN_TXEFC_EFWM_MASK)
-			>> MCAN_TXEFC_EFWM_OFFSET;
+	config->txEventFifo.watermark =
+			(uint8_t)GET_FIELD_VALUE(MCAN_TXEFC_EFWM, txefc);
 }
 
 static void
 getInterrupts(const Mcan *const mcan, Mcan_Config *const config)
 {
-	for (uint32_t i = 0; i < (uint32_t)Mcan_Interrupt_Count; i++) {
-		if ((i == (uint32_t)Mcan_Interrupt_Reserved1)
-				|| (i == (uint32_t)Mcan_Interrupt_Reserved2)) {
+	const uint32_t ie = mcan->reg.base->ie;
+	const uint32_t ile = mcan->reg.base->ile;
+	const uint32_t ils = mcan->reg.base->ils;
+
+	for (uint8_t i = 0u; i < (uint8_t)Mcan_Interrupt_Count; i++) {
+		if ((i != (uint8_t)Mcan_Interrupt_Reserved1)
+				&& (i != (uint8_t)Mcan_Interrupt_Reserved2)) {
+			config->interrupts[i].isEnabled = isBitSet(ie, i);
+
+			if (isBitSet(ils, i))
+				config->interrupts[i].line =
+						Mcan_InterruptLine_1;
+			else
+				config->interrupts[i].line =
+						Mcan_InterruptLine_0;
+		} else
 			config->interrupts[i].isEnabled = false;
-			continue;
-		}
-
-		const uint32_t mask = 1u << i;
-		config->interrupts[i].isEnabled =
-				((mcan->reg->ie & mask) != 0u);
-
-		if ((mcan->reg->ils & mask) == 0u)
-			config->interrupts[i].line = Mcan_InterruptLine_0;
-		else
-			config->interrupts[i].line = Mcan_InterruptLine_1;
 	}
 
-	config->isLine0InterruptEnabled =
-			((mcan->reg->ile & MCAN_ILE_EINT0_MASK) != 0u);
-	config->isLine1InterruptEnabled =
-			((mcan->reg->ile & MCAN_ILE_EINT1_MASK) != 0u);
+	config->isLine0InterruptEnabled = IS_BIT_SET(MCAN_ILE_EINT0, ile);
+	config->isLine1InterruptEnabled = IS_BIT_SET(MCAN_ILE_EINT1, ile);
 }
 
 void
@@ -807,7 +776,7 @@ Mcan_getConfig(const Mcan *const mcan, Mcan_Config *const config)
 	getDataTiming(mcan, config);
 	getTransmitterDelayCompensation(mcan, config);
 	getTimestamp(mcan, config);
-	getTimeout(mcan, config);
+	getTimeout(mcan, &config->timeout);
 	getStandardIdFiltering(mcan, config);
 	getExtendedIdFiltering(mcan, config);
 	getRxFifo0(mcan, config);
@@ -817,77 +786,75 @@ Mcan_getConfig(const Mcan *const mcan, Mcan_Config *const config)
 	getTxEventFifo(mcan, config);
 	getInterrupts(mcan, config);
 
-	config->wdtCounter = (mcan->reg->rwd & MCAN_RWD_WDC_MASK)
-			>> MCAN_RWD_WDC_OFFSET;
+	config->wdtCounter = (uint8_t)GET_FIELD_VALUE(
+			MCAN_RWD_WDC, mcan->reg.base->rwd);
 }
 
-static uint8_t
-encodeDataLengthCode(const uint8_t size)
+static Mcan_DataLengthCode
+encodeDataLengthCode(const Mcan_DataLengthRaw size)
 {
-	if (size <= 8u)
-		return size;
+	if ((uint8_t)size <= (uint8_t)Mcan_DataLengthRaw_8)
+		return (Mcan_DataLengthCode)size;
 	switch (size) {
-	case 12: return 9;
-	case 16: return 10;
-	case 20: return 11;
-	case 24: return 12;
-	case 32: return 13;
-	case 48: return 14;
-	case 64: return 15;
+	case Mcan_DataLengthRaw_12: return Mcan_DataLengthCode_12;
+	case Mcan_DataLengthRaw_16: return Mcan_DataLengthCode_16;
+	case Mcan_DataLengthRaw_20: return Mcan_DataLengthCode_20;
+	case Mcan_DataLengthRaw_24: return Mcan_DataLengthCode_24;
+	case Mcan_DataLengthRaw_32: return Mcan_DataLengthCode_32;
+	case Mcan_DataLengthRaw_48: return Mcan_DataLengthCode_48;
+	case Mcan_DataLengthRaw_64: return Mcan_DataLengthCode_64;
+	default: return Mcan_DataLengthCode_Invalid;
 	}
-	assert(0);
-	return 0;
 }
 
-static uint8_t
-decodeDataLengthCode(const uint8_t dlc, const bool isCanFdFrame)
+static Mcan_DataLengthRaw
+decodeDataLengthCode(const Mcan_DataLengthCode dlc, const bool isCanFdFrame)
 {
-	if (dlc <= 8u)
-		return dlc;
+	if ((uint8_t)dlc <= (uint8_t)Mcan_DataLengthRaw_8)
+		return (Mcan_DataLengthRaw)dlc;
 	if (!isCanFdFrame)
-		return 8u;
+		return Mcan_DataLengthRaw_8;
 
 	switch (dlc) {
-	case 9: return 12;
-	case 10: return 16;
-	case 11: return 20;
-	case 12: return 24;
-	case 13: return 32;
-	case 14: return 48;
-	case 15: return 64;
+	case Mcan_DataLengthCode_12: return Mcan_DataLengthRaw_12;
+	case Mcan_DataLengthCode_16: return Mcan_DataLengthRaw_16;
+	case Mcan_DataLengthCode_20: return Mcan_DataLengthRaw_20;
+	case Mcan_DataLengthCode_24: return Mcan_DataLengthRaw_24;
+	case Mcan_DataLengthCode_32: return Mcan_DataLengthRaw_32;
+	case Mcan_DataLengthCode_48: return Mcan_DataLengthRaw_48;
+	default: return Mcan_DataLengthRaw_64;
 	}
-	assert(0);
-	return 0;
 }
 
-static void
+static bool
 txAddElement(Mcan *const mcan, const Mcan_TxElement element,
 		uint32_t *const baseAddress, const uint8_t index)
 {
-	memset(baseAddress, 0, mcan->txElementSize);
+	const uint32_t dataLengthCode = encodeDataLengthCode(element.dataSize);
+	if (dataLengthCode == MCAN_DLC_INVALID)
+		return false;
 
+	(void)memset(baseAddress, 0, mcan->tx.elementSize);
+
+	// cppcheck-suppress [objectIndex]
 	baseAddress[MCAN_TXELEMENT_ESI_WORD] |=
-			((uint32_t)element.esiFlag << MCAN_TXELEMENT_ESI_OFFSET)
-			& MCAN_TXELEMENT_ESI_MASK;
+			BIT_FIELD_VALUE(MCAN_TXELEMENT_ESI, element.esiFlag);
+	// cppcheck-suppress [objectIndex]
 	baseAddress[MCAN_TXELEMENT_XTD_WORD] |=
-			((uint32_t)element.idType << MCAN_TXELEMENT_XTD_OFFSET)
-			& MCAN_TXELEMENT_XTD_MASK;
+			BIT_FIELD_VALUE(MCAN_TXELEMENT_XTD, element.idType);
+	// cppcheck-suppress [objectIndex]
 	baseAddress[MCAN_TXELEMENT_RTR_WORD] |=
-			((uint32_t)element.frameType
-					<< MCAN_TXELEMENT_RTR_OFFSET)
-			& MCAN_TXELEMENT_RTR_MASK;
+			BIT_FIELD_VALUE(MCAN_TXELEMENT_RTR, element.frameType);
+	// cppcheck-suppress [objectIndex]
 	baseAddress[MCAN_TXELEMENT_MM_WORD] |=
-			(uint32_t)(element.marker << MCAN_TXELEMENT_MM_OFFSET)
-			& MCAN_TXELEMENT_MM_MASK;
+			BIT_FIELD_VALUE(MCAN_TXELEMENT_MM, element.marker);
 
 	if (element.idType == Mcan_IdType_Standard)
-		baseAddress[MCAN_TXELEMENT_STDID_WORD] |=
-				(element.id << MCAN_TXELEMENT_STDID_OFFSET)
-				& MCAN_TXELEMENT_STDID_MASK;
+		baseAddress[MCAN_TXELEMENT_STDID_WORD] |= BIT_FIELD_VALUE(
+				MCAN_TXELEMENT_STDID, element.id);
 	else
-		baseAddress[MCAN_TXELEMENT_EXTID_WORD] |=
-				(element.id << MCAN_TXELEMENT_EXTID_OFFSET)
-				& MCAN_TXELEMENT_EXTID_MASK;
+		baseAddress[MCAN_TXELEMENT_EXTID_WORD] |= BIT_FIELD_VALUE(
+				MCAN_TXELEMENT_EXTID, element.id);
 
 	if (element.isTxEventStored)
 		baseAddress[MCAN_TXELEMENT_EFC_WORD] |= MCAN_TXELEMENT_EFC_MASK;
@@ -896,51 +863,57 @@ txAddElement(Mcan *const mcan, const Mcan_TxElement element,
 	if (element.isBitRateSwitchingEnabled)
 		baseAddress[MCAN_TXELEMENT_BRS_WORD] |= MCAN_TXELEMENT_BRS_MASK;
 	baseAddress[MCAN_TXELEMENT_DLC_WORD] |=
-			(uint32_t)(encodeDataLengthCode(element.dataSize)
-					<< MCAN_TXELEMENT_DLC_OFFSET)
-			& MCAN_TXELEMENT_DLC_MASK;
+			BIT_FIELD_VALUE(MCAN_TXELEMENT_DLC, dataLengthCode);
 
 	uint8_t *dataPointer =
 			(uint8_t *)&baseAddress[MCAN_TXELEMENT_DATA_WORD];
-	memcpy(dataPointer, element.data, element.dataSize);
+	(void)memcpy(dataPointer, element.data, element.dataSize);
+	MEMORY_SYNC_BARRIER();
 
-	if (element.isInterruptEnabled)
-		mcan->reg->txbtie |= 1u << index;
-	else
-		mcan->reg->txbtie &= ~(1u << index);
+	changeBitAtOffset(&mcan->reg.base->txbtie, index,
+			element.isInterruptEnabled);
+
+	return true;
 }
 
 bool
 Mcan_txBufferAdd(Mcan *const mcan, const Mcan_TxElement element,
-		const uint8_t index, int *const errCode)
+		const uint8_t index, ErrorCode *const errCode)
 {
-	if (index >= mcan->txBufferSize)
-		return returnError(errCode, Mcan_ErrorCodes_IndexOutOfRange);
+	if (index >= mcan->tx.bufferSize)
+		return returnError(errCode, Mcan_ErrorCode_IndexOutOfRange);
 
-	uint32_t *bufferPointer = mcan->txBufferAddress
-			+ (((uint32_t)mcan->txElementSize * index)
-					/ sizeof(uint32_t));
+	uint32_t *bufferPointer = &(mcan->tx.bufferAddress
+					[(mcan->tx.elementSize
+							 * (uint32_t)index)
+							/ sizeof(uint32_t)]);
 
-	txAddElement(mcan, element, bufferPointer, index);
-	mcan->reg->txbar = 1u << index;
+	if (!txAddElement(mcan, element, bufferPointer, index))
+		return returnError(errCode, Mcan_ErrorCode_ElementSizeInvalid);
+
+	mcan->reg.base->txbar = 1u << index;
 
 	return true;
 }
 
 bool
 Mcan_txQueuePush(Mcan *const mcan, const Mcan_TxElement element,
-		uint8_t *const index, int *const errCode)
+		uint8_t *const index, ErrorCode *const errCode)
 {
-	const bool full = (mcan->reg->txfqs & MCAN_TXFQS_TFQF_MASK) != 0u;
+	const uint32_t txfqs = mcan->reg.base->txfqs;
+	const bool full = IS_BIT_SET(MCAN_TXFQS_TFQF, txfqs);
 	if (full)
-		return returnError(errCode, Mcan_ErrorCodes_TxFifoFull);
-	*index = (mcan->reg->txfqs & MCAN_TXFQS_TFQPI_MASK)
-			>> MCAN_TXFQS_TFQPI_OFFSET;
-	uint32_t *baseAddr = mcan->txBufferAddress
-			+ ((uint32_t)(mcan->txElementSize * (*index))
-					/ sizeof(uint32_t));
-	txAddElement(mcan, element, baseAddr, *index);
-	mcan->reg->txbar = 1u << *index;
+		return returnError(errCode, Mcan_ErrorCode_TxFifoFull);
+	*index = (uint8_t)GET_FIELD_VALUE(MCAN_TXFQS_TFQPI, txfqs);
+	uint32_t *baseAddr =
+			&mcan->tx.bufferAddress
+					 [(mcan->tx.elementSize
+							  * (uint32_t)(*index))
+							 / sizeof(uint32_t)];
+	if (!txAddElement(mcan, element, baseAddr, *index))
+		return returnError(errCode, Mcan_ErrorCode_ElementSizeInvalid);
+
+	mcan->reg.base->txbar = 1u << *index;
 
 	return true;
 }
@@ -948,284 +921,239 @@ Mcan_txQueuePush(Mcan *const mcan, const Mcan_TxElement element,
 bool
 Mcan_txBufferIsTransmissionFinished(const Mcan *const mcan, const uint8_t index)
 {
-	return (mcan->reg->txbto & (1u << index)) != 0u;
-}
-
-static bool
-isTxEventFifoEmpty(const Mcan *const mcan)
-{
-	const uint8_t count = (mcan->reg->txefs & MCAN_TXEFS_EFFL_MASK)
-			>> MCAN_TXEFS_EFFL_OFFSET;
-	return count == 0u;
-}
-
-static const uint32_t *
-getTxEventFifoBaseAddress(const Mcan *const mcan)
-{
-	const uint8_t getIndex = (mcan->reg->txefs & MCAN_TXEFS_EFGI_MASK)
-			>> MCAN_TXEFS_EFGI_OFFSET;
-	return mcan->txEventFifoAddress
-			+ ((uint32_t)(MCAN_TXEVENTELEMENT_SIZE * getIndex)
-					/ sizeof(uint32_t));
+	return isBitSet(mcan->reg.base->txbto, index);
 }
 
 bool
-Mcan_txEventFifoPull(Mcan *const mcan, Mcan_TxEventElement *const element,
-		int *const errCode)
+Mcan_txEventFifoPull(const Mcan *const mcan, Mcan_TxEventElement *const element,
+		ErrorCode *const errCode)
 {
-	if (isTxEventFifoEmpty(mcan))
-		return returnError(errCode, Mcan_ErrorCodes_TxEventFifoEmpty);
+	uint32_t count =
+			GET_FIELD_VALUE(MCAN_TXEFS_EFFL, mcan->reg.base->txefs);
+	if (count == 0u)
+		return returnError(errCode, Mcan_ErrorCode_TxEventFifoEmpty);
 
-	const uint32_t *baseAddr = getTxEventFifoBaseAddress(mcan);
+	uint8_t getIndex = (uint8_t)GET_FIELD_VALUE(
+			MCAN_TXEFS_EFGI, mcan->reg.base->txefs);
+	const uint32_t *const baseAddr =
+			&mcan->txEventFifoAddress[(MCAN_TXEVENTELEMENT_SIZE
+								  * getIndex)
+					/ sizeof(uint32_t)];
 
-	element->esiFlag = (baseAddr[MCAN_TXEVENTELEMENT_ESI_WORD]
-					   & MCAN_TXEVENTELEMENT_ESI_MASK)
-			>> MCAN_TXEVENTELEMENT_ESI_OFFSET;
-	element->idType = (baseAddr[MCAN_TXEVENTELEMENT_XTD_WORD]
-					  & MCAN_TXEVENTELEMENT_XTD_MASK)
-			>> MCAN_TXEVENTELEMENT_XTD_OFFSET;
-	element->frameType = (baseAddr[MCAN_TXEVENTELEMENT_RTR_WORD]
-					     & MCAN_TXEVENTELEMENT_RTR_MASK)
-			>> MCAN_TXEVENTELEMENT_RTR_OFFSET;
+	element->esiFlag = GET_FIELD_VALUE(MCAN_TXEVENTELEMENT_ESI,
+			baseAddr[MCAN_TXEVENTELEMENT_ESI_WORD]);
+	element->idType = GET_FIELD_VALUE(MCAN_TXEVENTELEMENT_XTD,
+			baseAddr[MCAN_TXEVENTELEMENT_XTD_WORD]);
+	element->frameType = GET_FIELD_VALUE(MCAN_TXEVENTELEMENT_RTR,
+			baseAddr[MCAN_TXEVENTELEMENT_RTR_WORD]);
+
 	if (element->idType == Mcan_IdType_Standard)
-		element->id = (baseAddr[MCAN_TXEVENTELEMENT_STDID_WORD]
-					      & MCAN_TXEVENTELEMENT_STDID_MASK)
-				>> MCAN_TXEVENTELEMENT_STDID_OFFSET;
+		element->id = GET_FIELD_VALUE(MCAN_TXEVENTELEMENT_STDID,
+				baseAddr[MCAN_TXEVENTELEMENT_STDID_WORD]);
 	else
-		element->id = (baseAddr[MCAN_TXEVENTELEMENT_EXTID_WORD]
-					      & MCAN_TXEVENTELEMENT_EXTID_MASK)
-				>> MCAN_TXEVENTELEMENT_EXTID_OFFSET;
-	element->marker =
-			(uint8_t)((baseAddr[MCAN_TXEVENTELEMENT_MM_WORD]
-						  & MCAN_TXEVENTELEMENT_MM_MASK)
-					>> MCAN_TXEVENTELEMENT_MM_OFFSET);
-	element->eventType = (baseAddr[MCAN_TXEVENTELEMENT_ET_WORD]
-					     & MCAN_TXEVENTELEMENT_ET_MASK)
-			>> MCAN_TXEVENTELEMENT_ET_OFFSET;
-	element->isCanFdFormatEnabled =
-			(baseAddr[MCAN_TXEVENTELEMENT_FDF_WORD]
-					& MCAN_TXEVENTELEMENT_FDF_MASK)
-			!= 0u;
-	element->isBitRateSwitchingEnabled =
-			(baseAddr[MCAN_TXEVENTELEMENT_BRS_WORD]
-					& MCAN_TXEVENTELEMENT_BRS_MASK)
-			!= 0u;
-	element->timestamp = (baseAddr[MCAN_TXEVENTELEMENT_TXTS_WORD]
-					     & MCAN_TXEVENTELEMENT_TXTS_MASK)
-			>> MCAN_TXEVENTELEMENT_TXTS_OFFSET;
-	element->dataSize = decodeDataLengthCode(
-			(baseAddr[MCAN_TXEVENTELEMENT_DLC_WORD]
-					& MCAN_TXEVENTELEMENT_DLC_MASK)
-					>> MCAN_TXEVENTELEMENT_DLC_OFFSET,
+		element->id = GET_FIELD_VALUE(MCAN_TXEVENTELEMENT_EXTID,
+				baseAddr[MCAN_TXEVENTELEMENT_EXTID_WORD]);
+	element->marker = (uint8_t)GET_FIELD_VALUE(MCAN_TXEVENTELEMENT_MM,
+			baseAddr[MCAN_TXEVENTELEMENT_MM_WORD]);
+	element->eventType = GET_FIELD_VALUE(MCAN_TXEVENTELEMENT_ET,
+			baseAddr[MCAN_TXEVENTELEMENT_ET_WORD]);
+	element->isCanFdFormatEnabled = IS_BIT_SET(MCAN_TXEVENTELEMENT_FDF,
+			baseAddr[MCAN_TXEVENTELEMENT_FDF_WORD]);
+	element->isBitRateSwitchingEnabled = IS_BIT_SET(MCAN_TXEVENTELEMENT_BRS,
+			baseAddr[MCAN_TXEVENTELEMENT_BRS_WORD]);
+	element->timestamp = (uint16_t)GET_FIELD_VALUE(MCAN_TXEVENTELEMENT_TXTS,
+			baseAddr[MCAN_TXEVENTELEMENT_TXTS_WORD]);
+	const Mcan_DataLengthRaw dataSize = decodeDataLengthCode(
+			(uint8_t)GET_FIELD_VALUE(MCAN_TXEVENTELEMENT_DLC,
+					baseAddr[MCAN_TXEVENTELEMENT_DLC_WORD]),
 			element->isCanFdFormatEnabled);
+	element->dataSize = (uint8_t)dataSize;
+
+	MEMORY_SYNC_BARRIER();
+
+	mcan->reg.base->txefa = BIT_FIELD_VALUE(MCAN_TXEFA_EFAI, getIndex);
 	return true;
 }
 
 static void
 getRxElement(const uint32_t *const baseAddr, Mcan_RxElement *const element)
 {
-	element->esiFlag = (baseAddr[MCAN_RXELEMENT_ESI_WORD]
-					   & MCAN_RXELEMENT_ESI_MASK)
-			>> MCAN_RXELEMENT_ESI_OFFSET;
-	element->idType = (baseAddr[MCAN_RXELEMENT_XTD_WORD]
-					  & MCAN_RXELEMENT_XTD_MASK)
-			>> MCAN_RXELEMENT_XTD_OFFSET;
-	element->frameType = (baseAddr[MCAN_RXELEMENT_RTR_WORD]
-					     & MCAN_RXELEMENT_RTR_MASK)
-			>> MCAN_RXELEMENT_RTR_OFFSET;
+	element->esiFlag = GET_FIELD_VALUE(
+			MCAN_RXELEMENT_ESI, baseAddr[MCAN_RXELEMENT_ESI_WORD]);
+	element->idType = GET_FIELD_VALUE(
+			MCAN_RXELEMENT_XTD, baseAddr[MCAN_RXELEMENT_XTD_WORD]);
+	element->frameType = GET_FIELD_VALUE(
+			MCAN_RXELEMENT_RTR, baseAddr[MCAN_RXELEMENT_RTR_WORD]);
 	if (element->idType == Mcan_IdType_Standard)
-		element->id = (baseAddr[MCAN_RXELEMENT_STDID_WORD]
-					      & MCAN_RXELEMENT_STDID_MASK)
-				>> MCAN_RXELEMENT_STDID_OFFSET;
+		element->id = GET_FIELD_VALUE(MCAN_RXELEMENT_STDID,
+				baseAddr[MCAN_RXELEMENT_STDID_WORD]);
 	else
-		element->id = (baseAddr[MCAN_RXELEMENT_EXTID_WORD]
-					      & MCAN_RXELEMENT_EXTID_MASK)
-				>> MCAN_RXELEMENT_EXTID_OFFSET;
-	element->isNonMatchingFrame =
-			(baseAddr[MCAN_RXELEMENT_ANMF_WORD]
-					& MCAN_RXELEMENT_ANMF_MASK)
-			>> MCAN_RXELEMENT_ANMF_OFFSET;
-	element->filterIndex = (baseAddr[MCAN_RXELEMENT_FIDX_WORD]
-					       & MCAN_RXELEMENT_FIDX_MASK)
-			>> MCAN_RXELEMENT_FIDX_OFFSET;
-	element->isCanFdFormatEnabled =
-			(baseAddr[MCAN_RXELEMENT_FDF_WORD]
-					& MCAN_RXELEMENT_FDF_MASK)
-			>> MCAN_RXELEMENT_FDF_OFFSET;
-	element->isBitRateSwitchingEnabled =
-			(baseAddr[MCAN_RXELEMENT_BRS_WORD]
-					& MCAN_RXELEMENT_BRS_MASK)
-			>> MCAN_RXELEMENT_BRS_OFFSET;
-	element->timestamp = (baseAddr[MCAN_RXELEMENT_RXTS_WORD]
-					     & MCAN_RXELEMENT_RXTS_MASK)
-			>> MCAN_RXELEMENT_RXTS_OFFSET;
-	element->dataSize = decodeDataLengthCode(
-			(baseAddr[MCAN_RXELEMENT_DLC_WORD]
-					& MCAN_RXELEMENT_DLC_MASK)
-					>> MCAN_RXELEMENT_DLC_OFFSET,
+		element->id = GET_FIELD_VALUE(MCAN_RXELEMENT_EXTID,
+				baseAddr[MCAN_RXELEMENT_EXTID_WORD]);
+	element->isNonMatchingFrame = GET_FIELD_VALUE(MCAN_RXELEMENT_ANMF,
+			baseAddr[MCAN_RXELEMENT_ANMF_WORD]);
+	element->filterIndex = (uint8_t)GET_FIELD_VALUE(MCAN_RXELEMENT_FIDX,
+			baseAddr[MCAN_RXELEMENT_FIDX_WORD]);
+	element->isCanFdFormatEnabled = IS_BIT_SET(
+			MCAN_RXELEMENT_FDF, baseAddr[MCAN_RXELEMENT_FDF_WORD]);
+	element->isBitRateSwitchingEnabled = IS_BIT_SET(
+			MCAN_RXELEMENT_BRS, baseAddr[MCAN_RXELEMENT_BRS_WORD]);
+	element->timestamp = (uint16_t)GET_FIELD_VALUE(MCAN_RXELEMENT_RXTS,
+			baseAddr[MCAN_RXELEMENT_RXTS_WORD]);
+	const Mcan_DataLengthRaw dataSize = decodeDataLengthCode(
+			(uint8_t)GET_FIELD_VALUE(MCAN_RXELEMENT_DLC,
+					baseAddr[MCAN_RXELEMENT_DLC_WORD]),
 			element->isCanFdFormatEnabled);
-	const uint8_t *dataPointer =
+	element->dataSize = (uint8_t)dataSize;
+	const uint8_t *const dataPointer =
 			(const uint8_t *)&baseAddr[MCAN_RXELEMENT_DATA_WORD];
-	memcpy(element->data, dataPointer, element->dataSize);
+	(void)memcpy(element->data, dataPointer, element->dataSize);
+
+	MEMORY_SYNC_BARRIER();
 }
 
 void
-Mcan_rxBufferGet(Mcan *const mcan, const uint8_t index,
+Mcan_rxBufferGet(const Mcan *const mcan, const uint8_t index,
 		Mcan_RxElement *const element)
 {
-	const uint32_t *bufferPointer = mcan->rxBufferAddress
-			+ ((uint32_t)(mcan->rxBufferElementSize * index)
-					/ sizeof(uint32_t));
+	const uint32_t *const bufferPointer =
+			&mcan->rxBufferAddress
+					 [(mcan->rxBufferElementSize
+							  * (uint32_t)index)
+							 / sizeof(uint32_t)];
 
 	getRxElement(bufferPointer, element);
 }
 
-static bool
-rx0FifoPull(Mcan *const mcan, Mcan_RxElement *const element, int *const errCode)
-{
-	const uint8_t count = (mcan->reg->rxf0s & MCAN_RXF0S_F0FL_MASK)
-			>> MCAN_RXF0S_F0FL_OFFSET;
-	if (count == 0u)
-		return returnError(errCode, Mcan_ErrorCodes_RxFifoEmpty);
-	const uint8_t getIndex = (mcan->reg->rxf0s & MCAN_RXF0S_F0GI_MASK)
-			>> MCAN_RXF0S_F0GI_OFFSET;
-	const uint32_t *const baseAddr = mcan->rxFifo0Address
-			+ ((uint32_t)(mcan->rxFifo0ElementSize * getIndex)
-					/ sizeof(uint32_t));
-	getRxElement(baseAddr, element);
-	mcan->reg->rxf0a = (uint32_t)(getIndex << MCAN_RXF0A_F0AI_OFFSET)
-			& MCAN_RXF0A_F0AI_MASK;
-	return true;
-}
-
-static bool
-rx1FifoPull(Mcan *const mcan, Mcan_RxElement *const element, int *const errCode)
-{
-	const uint8_t count = (mcan->reg->rxf1s & MCAN_RXF1S_F1FL_MASK)
-			>> MCAN_RXF1S_F1FL_OFFSET;
-	if (count == 0u)
-		return returnError(errCode, Mcan_ErrorCodes_RxFifoEmpty);
-	const uint8_t getIndex = (mcan->reg->rxf1s & MCAN_RXF1S_F1GI_MASK)
-			>> MCAN_RXF1S_F1GI_OFFSET;
-	const uint32_t *const baseAddr = mcan->rxFifo1Address
-			+ ((uint32_t)(mcan->rxFifo1ElementSize * getIndex)
-					/ sizeof(uint32_t));
-	getRxElement(baseAddr, element);
-	mcan->reg->rxf1a = (uint32_t)(getIndex << MCAN_RXF1A_F1AI_OFFSET)
-			& MCAN_RXF1A_F1AI_MASK;
-	return true;
-}
-
 bool
 Mcan_rxFifoPull(Mcan *const mcan, const Mcan_RxFifoId id,
-		Mcan_RxElement *const element, int *const errCode)
+		Mcan_RxElement *const element, ErrorCode *const errCode)
 {
 	assert(mcan != NULL);
+	uint32_t rxfs = 0u;
+	const uint32_t *fifoAddress = NULL;
+	uint32_t elementSize = 0u;
+	volatile uint32_t *ackReg = NULL;
+
 	switch (id) {
-	case Mcan_RxFifoId_0: return rx0FifoPull(mcan, element, errCode);
-	case Mcan_RxFifoId_1: return rx1FifoPull(mcan, element, errCode);
+	case Mcan_RxFifoId_0:
+		rxfs = mcan->reg.base->rxf0s;
+		fifoAddress = mcan->rxFifo0.address;
+		elementSize = mcan->rxFifo0.elementSize;
+		ackReg = &mcan->reg.base->rxf0a;
+		break;
+	case Mcan_RxFifoId_1:
+		rxfs = mcan->reg.base->rxf1s;
+		fifoAddress = mcan->rxFifo1.address;
+		elementSize = mcan->rxFifo1.elementSize;
+		ackReg = &mcan->reg.base->rxf1a;
+		break;
 	}
-	return returnError(errCode, Mcan_ErrorCodes_InvalidRxFifoId);
+
+	if (fifoAddress == NULL)
+		return returnError(errCode, Mcan_ErrorCode_InvalidRxFifoId);
+
+	const uint8_t count = (uint8_t)GET_FIELD_VALUE(MCAN_RXF0S_F0FL, rxfs);
+	if (count == 0u)
+		return returnError(errCode, Mcan_ErrorCode_RxFifoEmpty);
+	const uint8_t getIndex =
+			(uint8_t)GET_FIELD_VALUE(MCAN_RXF0S_F0GI, rxfs);
+	const uint32_t *const baseAddress =
+			&fifoAddress[(elementSize * getIndex)
+					/ sizeof(uint32_t)];
+	getRxElement(baseAddress, element);
+	*ackReg = getIndex;
+
+	return true;
 }
 
 bool
 Mcan_getRxFifoStatus(const Mcan *const mcan, const Mcan_RxFifoId id,
-		Mcan_RxFifoStatus *const status, int *const errCode)
+		Mcan_RxFifoStatus *const status, ErrorCode *const errCode)
 {
 	switch (id) {
-	case Mcan_RxFifoId_0:
-		status->count = (mcan->reg->rxf0s & MCAN_RXF0S_F0FL_MASK)
-				>> MCAN_RXF0S_F0FL_OFFSET;
-		status->isFull = (mcan->reg->rxf0s & MCAN_RXF0S_F0F_MASK)
-				>> MCAN_RXF0S_F0F_OFFSET;
-		status->isMessageLost =
-				(mcan->reg->rxf0s & MCAN_RXF0S_RF0L_MASK)
-				>> MCAN_RXF0S_RF0L_OFFSET;
-		return true;
-	case Mcan_RxFifoId_1:
-		status->count = (mcan->reg->rxf1s & MCAN_RXF1S_F1FL_MASK)
-				>> MCAN_RXF1S_F1FL_OFFSET;
-		status->isFull = (mcan->reg->rxf1s & MCAN_RXF1S_F1F_MASK)
-				>> MCAN_RXF1S_F1F_OFFSET;
-		status->isMessageLost =
-				(mcan->reg->rxf1s & MCAN_RXF1S_RF1L_MASK)
-				>> MCAN_RXF1S_RF1L_OFFSET;
+	case Mcan_RxFifoId_0: {
+		const uint32_t rxf0s = mcan->reg.base->rxf0s;
+		status->count = (uint8_t)GET_FIELD_VALUE(
+				MCAN_RXF0S_F0FL, rxf0s);
+		status->isFull = IS_BIT_SET(MCAN_RXF0S_F0F, rxf0s);
+		status->isMessageLost = IS_BIT_SET(MCAN_RXF0S_RF0L, rxf0s);
 		return true;
 	}
+	case Mcan_RxFifoId_1: {
+		const uint32_t rxf1s = mcan->reg.base->rxf1s;
+		status->count = (uint8_t)GET_FIELD_VALUE(
+				MCAN_RXF1S_F1FL, rxf1s);
+		status->isFull = IS_BIT_SET(MCAN_RXF1S_F1F, rxf1s);
+		status->isMessageLost = IS_BIT_SET(MCAN_RXF1S_RF1L, rxf1s);
+		return true;
+	}
+	}
 
-	return returnError(errCode, Mcan_ErrorCodes_InvalidRxFifoId);
+	return returnError(errCode, Mcan_ErrorCode_InvalidRxFifoId);
 }
 
 void
 Mcan_getTxQueueStatus(const Mcan *const mcan, Mcan_TxQueueStatus *const status)
 {
-	status->isFull = (mcan->reg->txfqs & MCAN_TXFQS_TFQF_MASK)
-			>> MCAN_TXFQS_TFQF_OFFSET;
+	status->isFull = IS_BIT_SET(MCAN_TXFQS_TFQF, mcan->reg.base->txfqs);
 }
 
 void
 Mcan_getTxEventFifoStatus(
 		const Mcan *const mcan, Mcan_TxEventFifoStatus *const status)
 {
-	status->count = (mcan->reg->txefs & MCAN_TXEFS_EFFL_MASK)
-			>> MCAN_TXEFS_EFFL_OFFSET;
-	status->isFull = (mcan->reg->txefs & MCAN_TXEFS_EFF_MASK)
-			>> MCAN_TXEFS_EFF_OFFSET;
-	status->isMessageLost = (mcan->reg->txefs & MCAN_TXEFS_TEFL_MASK)
-			>> MCAN_TXEFS_TEFL_OFFSET;
+	const uint32_t txefs = mcan->reg.base->txefs;
+	status->count = (uint8_t)GET_FIELD_VALUE(MCAN_TXEFS_EFFL, txefs);
+	status->isFull = IS_BIT_SET(MCAN_TXEFS_EFF, txefs);
+	status->isMessageLost = IS_BIT_SET(MCAN_TXEFS_TEFL, txefs);
 }
 
 bool
 Mcan_setStandardIdFilter(Mcan *const mcan, const Mcan_RxFilterElement element,
-		const uint8_t index, int *const errCode)
+		const uint8_t index, ErrorCode *const errCode)
 {
 	if (index >= mcan->rxStdFilterSize)
-		return returnError(errCode, Mcan_ErrorCodes_IndexOutOfRange);
+		return returnError(errCode, Mcan_ErrorCode_IndexOutOfRange);
 
-	uint32_t *bufferPointer = mcan->rxStdFilterAddress
-			+ (((uint32_t)MCAN_STDRXFILTERELEMENT_SIZE * index)
-					/ sizeof(uint32_t));
-	*bufferPointer = (((uint32_t)element.type
-					  << MCAN_STDRXFILTERELEMENT_SFT_OFFSET)
-					 & MCAN_STDRXFILTERELEMENT_SFT_MASK)
-			| (((uint32_t)element.config
-					   << MCAN_STDRXFILTERELEMENT_SFEC_OFFSET)
-					& MCAN_STDRXFILTERELEMENT_SFEC_MASK)
-			| ((element.id1 << MCAN_STDRXFILTERELEMENT_SFID1_OFFSET)
-					& MCAN_STDRXFILTERELEMENT_SFID1_MASK)
-			| ((element.id2 << MCAN_STDRXFILTERELEMENT_SFID2_OFFSET)
-					& MCAN_STDRXFILTERELEMENT_SFID2_MASK);
+	uint32_t *const bufferPointer =
+			&mcan->rxStdFilterAddress[(MCAN_STDRXFILTERELEMENT_SIZE
+								  * index)
+					/ sizeof(uint32_t)];
+	*bufferPointer = BIT_FIELD_VALUE(MCAN_STDRXFILTERELEMENT_SFT,
+					 element.type)
+			| BIT_FIELD_VALUE(MCAN_STDRXFILTERELEMENT_SFEC,
+					element.config)
+			| BIT_FIELD_VALUE(MCAN_STDRXFILTERELEMENT_SFID1,
+					element.id1)
+			| BIT_FIELD_VALUE(MCAN_STDRXFILTERELEMENT_SFID2,
+					element.id2);
 
 	return true;
 }
 
 bool
 Mcan_setExtendedIdFilter(Mcan *const mcan, const Mcan_RxFilterElement element,
-		const uint8_t index, int *const errCode)
+		const uint8_t index, ErrorCode *const errCode)
 {
 	if (index >= mcan->rxExtFilterSize)
-		return returnError(errCode, Mcan_ErrorCodes_IndexOutOfRange);
+		return returnError(errCode, Mcan_ErrorCode_IndexOutOfRange);
 
-	uint32_t *bufferPointer = mcan->rxExtFilterAddress
-			+ (((uint32_t)MCAN_EXTRXFILTERELEMENT_SIZE * index)
-					/ sizeof(uint32_t));
+	uint32_t *const bufferPointer =
+			&mcan->rxExtFilterAddress[(MCAN_EXTRXFILTERELEMENT_SIZE
+								  * index)
+					/ sizeof(uint32_t)];
 
-	memset(bufferPointer, 0, MCAN_EXTRXFILTERELEMENT_SIZE);
+	(void)memset(bufferPointer, 0, MCAN_EXTRXFILTERELEMENT_SIZE);
 
-	bufferPointer[MCAN_EXTRXFILTERELEMENT_EFT_WORD] |=
-			((uint32_t)element.type
-					<< MCAN_EXTRXFILTERELEMENT_EFT_OFFSET)
-			& MCAN_EXTRXFILTERELEMENT_EFT_MASK;
-	bufferPointer[MCAN_EXTRXFILTERELEMENT_EFEC_WORD] |=
-			((uint32_t)element.config
-					<< MCAN_EXTRXFILTERELEMENT_EFEC_OFFSET)
-			& MCAN_EXTRXFILTERELEMENT_EFEC_MASK;
-	bufferPointer[MCAN_EXTRXFILTERELEMENT_EFID1_WORD] |=
-			(element.id1 << MCAN_EXTRXFILTERELEMENT_EFID1_OFFSET)
-			& MCAN_EXTRXFILTERELEMENT_EFID1_MASK;
-	bufferPointer[MCAN_EXTRXFILTERELEMENT_EFID2_WORD] |=
-			(element.id2 << MCAN_EXTRXFILTERELEMENT_EFID2_OFFSET)
-			& MCAN_EXTRXFILTERELEMENT_EFID2_MASK;
+	bufferPointer[MCAN_EXTRXFILTERELEMENT_EFT_WORD] |= BIT_FIELD_VALUE(
+			MCAN_EXTRXFILTERELEMENT_EFT, element.type);
+	bufferPointer[MCAN_EXTRXFILTERELEMENT_EFEC_WORD] |= BIT_FIELD_VALUE(
+			MCAN_EXTRXFILTERELEMENT_EFEC, element.config);
+	bufferPointer[MCAN_EXTRXFILTERELEMENT_EFID1_WORD] |= BIT_FIELD_VALUE(
+			MCAN_EXTRXFILTERELEMENT_EFID1, element.id1);
+	bufferPointer[MCAN_EXTRXFILTERELEMENT_EFID2_WORD] |= BIT_FIELD_VALUE(
+			MCAN_EXTRXFILTERELEMENT_EFID2, element.id2);
 
 	return true;
 }
@@ -1234,45 +1162,45 @@ void
 Mcan_getInterruptStatus(
 		const Mcan *const mcan, Mcan_InterruptStatus *const status)
 {
-	uint32_t flags = mcan->reg->ir;
-	mcan->reg->ir = flags;
+	const uint32_t flags = mcan->reg.base->ir;
+	mcan->reg.base->ir = flags;
 
-	status->hasRf0nOccured = (flags & MCAN_IR_RF0N_MASK) != 0u;
-	status->hasRf0wOccured = (flags & MCAN_IR_RF0W_MASK) != 0u;
-	status->hasRf0fOccured = (flags & MCAN_IR_RF0F_MASK) != 0u;
-	status->hasRf0lOccured = (flags & MCAN_IR_RF0L_MASK) != 0u;
-	status->hasRf1nOccured = (flags & MCAN_IR_RF1N_MASK) != 0u;
-	status->hasRf1wOccured = (flags & MCAN_IR_RF1W_MASK) != 0u;
-	status->hasRf1fOccured = (flags & MCAN_IR_RF1F_MASK) != 0u;
-	status->hasRf1lOccured = (flags & MCAN_IR_RF1L_MASK) != 0u;
-	status->hasHpmOccured = (flags & MCAN_IR_HPM_MASK) != 0u;
-	status->hasTcOccured = (flags & MCAN_IR_TC_MASK) != 0u;
-	status->hasTcfOccured = (flags & MCAN_IR_TCF_MASK) != 0u;
-	status->hasTfeOccured = (flags & MCAN_IR_TFE_MASK) != 0u;
-	status->hasTefnOccured = (flags & MCAN_IR_TEFN_MASK) != 0u;
-	status->hasTefwOccured = (flags & MCAN_IR_TEFW_MASK) != 0u;
-	status->hasTeffOccured = (flags & MCAN_IR_TEFF_MASK) != 0u;
-	status->hasTeflOccured = (flags & MCAN_IR_TEFL_MASK) != 0u;
-	status->hasTswOccured = (flags & MCAN_IR_TSW_MASK) != 0u;
-	status->hasMrafOccured = (flags & MCAN_IR_MRAF_MASK) != 0u;
-	status->hasTooOccured = (flags & MCAN_IR_TOO_MASK) != 0u;
-	status->hasDrxOccured = (flags & MCAN_IR_DRX_MASK) != 0u;
-	status->hasEloOccured = (flags & MCAN_IR_ELO_MASK) != 0u;
-	status->hasEpOccured = (flags & MCAN_IR_EP_MASK) != 0u;
-	status->hasEwOccured = (flags & MCAN_IR_EW_MASK) != 0u;
-	status->hasBoOccured = (flags & MCAN_IR_BO_MASK) != 0u;
-	status->hasWdiOccured = (flags & MCAN_IR_WDI_MASK) != 0u;
-	status->hasPeaOccured = (flags & MCAN_IR_PEA_MASK) != 0u;
-	status->hasPedOccured = (flags & MCAN_IR_PED_MASK) != 0u;
-	status->hasAraOccured = (flags & MCAN_IR_ARA_MASK) != 0u;
+	status->hasRf0nOccurred = (flags & MCAN_IR_RF0N_MASK) != 0u;
+	status->hasRf0wOccurred = (flags & MCAN_IR_RF0W_MASK) != 0u;
+	status->hasRf0fOccurred = (flags & MCAN_IR_RF0F_MASK) != 0u;
+	status->hasRf0lOccurred = (flags & MCAN_IR_RF0L_MASK) != 0u;
+	status->hasRf1nOccurred = (flags & MCAN_IR_RF1N_MASK) != 0u;
+	status->hasRf1wOccurred = (flags & MCAN_IR_RF1W_MASK) != 0u;
+	status->hasRf1fOccurred = (flags & MCAN_IR_RF1F_MASK) != 0u;
+	status->hasRf1lOccurred = (flags & MCAN_IR_RF1L_MASK) != 0u;
+	status->hasHpmOccurred = (flags & MCAN_IR_HPM_MASK) != 0u;
+	status->hasTcOccurred = (flags & MCAN_IR_TC_MASK) != 0u;
+	status->hasTcfOccurred = (flags & MCAN_IR_TCF_MASK) != 0u;
+	status->hasTfeOccurred = (flags & MCAN_IR_TFE_MASK) != 0u;
+	status->hasTefnOccurred = (flags & MCAN_IR_TEFN_MASK) != 0u;
+	status->hasTefwOccurred = (flags & MCAN_IR_TEFW_MASK) != 0u;
+	status->hasTeffOccurred = (flags & MCAN_IR_TEFF_MASK) != 0u;
+	status->hasTeflOccurred = (flags & MCAN_IR_TEFL_MASK) != 0u;
+	status->hasTswOccurred = (flags & MCAN_IR_TSW_MASK) != 0u;
+	status->hasMrafOccurred = (flags & MCAN_IR_MRAF_MASK) != 0u;
+	status->hasTooOccurred = (flags & MCAN_IR_TOO_MASK) != 0u;
+	status->hasDrxOccurred = (flags & MCAN_IR_DRX_MASK) != 0u;
+	status->hasEloOccurred = (flags & MCAN_IR_ELO_MASK) != 0u;
+	status->hasEpOccurred = (flags & MCAN_IR_EP_MASK) != 0u;
+	status->hasEwOccurred = (flags & MCAN_IR_EW_MASK) != 0u;
+	status->hasBoOccurred = (flags & MCAN_IR_BO_MASK) != 0u;
+	status->hasWdiOccurred = (flags & MCAN_IR_WDI_MASK) != 0u;
+	status->hasPeaOccurred = (flags & MCAN_IR_PEA_MASK) != 0u;
+	status->hasPedOccurred = (flags & MCAN_IR_PED_MASK) != 0u;
+	status->hasAraOccurred = (flags & MCAN_IR_ARA_MASK) != 0u;
 }
 
 bool
 Mcan_isTxFifoEmpty(const Mcan *const mcan)
 {
-	const uint32_t freeLevel = (mcan->reg->txfqs & MCAN_TXFQS_TFFL_MASK)
-			>> MCAN_TXFQS_TFFL_OFFSET;
-	const uint32_t queueSize = (mcan->reg->txbc & MCAN_TXBC_TFQS_MASK)
-			>> MCAN_TXBC_TFQS_OFFSET;
+	const uint32_t freeLevel =
+			GET_FIELD_VALUE(MCAN_TXFQS_TFFL, mcan->reg.base->txfqs);
+	const uint32_t queueSize =
+			GET_FIELD_VALUE(MCAN_TXBC_TFQS, mcan->reg.base->txbc);
 	return freeLevel == queueSize;
 }

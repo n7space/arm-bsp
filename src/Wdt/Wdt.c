@@ -1,14 +1,14 @@
 /**@file
  * This file is part of the ARM BSP for the Test Environment.
  *
- * @copyright 2020-2021 N7 Space Sp. z o.o.
+ * @copyright 2018-2024 N7 Space Sp. z o.o.
  *
  * Test Environment was developed under a programme of,
  * and funded by, the European Space Agency (the "ESA").
  *
  *
- * Licensed under the ESA Public License (ESA-PL) Permissive,
- * Version 2.3 (the "License");
+ * Licensed under the ESA Public License (ESA-PL) Permissive (Type 3),
+ * Version 2.4 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
@@ -23,37 +23,50 @@
 
 #include "Wdt.h"
 
-#include <string.h>
+#include <Utils/Bits.h>
+
+#if defined(N7S_TARGET_SAMV71Q21)
+#include <bsp/arm/Rstc/Rstc.h>
+#include <bsp/arm/Rstc/RstcRegisters.h>
+#endif // N7S_TARGET_SAMV71Q21
 
 void
 Wdt_init(Wdt *const wdt)
 {
+	// cppcheck-suppress misra-c2012-11.4
 	wdt->registers = (Wdt_Registers *)WDT0_ADDRESS_BASE;
 }
 
 void
 Wdt_setConfig(Wdt *const wdt, const Wdt_Config *const config)
 {
-	wdt->registers->mr =
-			(((uint32_t)config->counterValue << WDT_MR_WDV_OFFSET)
-					& WDT_MR_WDV_MASK)
-			| (((uint32_t)config->deltaValue << WDT_MR_WDD_OFFSET)
-					& WDT_MR_WDD_MASK)
-			| (((config->isDisabled ? 1u : 0u)
-					   << WDT_MR_WDDIS_OFFSET)
-					& WDT_MR_WDDIS_MASK)
-			| (((config->isFaultInterruptEnabled ? 1u : 0u)
-					   << WDT_MR_WDFIEN_OFFSET)
-					& WDT_MR_WDFIEN_MASK)
-			| (((config->isResetEnabled ? 1u : 0u)
-					   << WDT_MR_WDRSTEN_OFFSET)
-					& WDT_MR_WDRSTEN_MASK)
-			| (((config->isHaltedOnDebug ? 1u : 0u)
-					   << WDT_MR_WDDBGHLT_OFFSET)
-					& WDT_MR_WDDBGHLT_MASK)
-			| (((config->isHaltedOnIdle ? 1u : 0u)
-					   << WDT_MR_WDIDLEHLT_OFFSET)
-					& WDT_MR_WDIDLEHLT_MASK);
+	wdt->registers->mr = BIT_FIELD_VALUE(WDT_MR_WDV, config->counterValue)
+			| BIT_FIELD_VALUE(WDT_MR_WDD, config->deltaValue)
+			| BIT_VALUE(WDT_MR_WDDIS, config->isDisabled)
+			| BIT_VALUE(WDT_MR_WDFIEN,
+					config->isFaultInterruptEnabled)
+#if defined(N7S_TARGET_SAMRH71F20) || defined(N7S_TARGET_SAMRH707F18)
+			| BIT_VALUE(WDT_MR_WDRPROC,
+					config->doesFaultActivateProcessorReset)
+#endif
+			| BIT_VALUE(WDT_MR_WDRSTEN, config->isResetEnabled)
+			| BIT_VALUE(WDT_MR_WDDBGHLT, config->isHaltedOnDebug)
+			| BIT_VALUE(WDT_MR_WDIDLEHLT, config->isHaltedOnIdle);
+
+#if defined(N7S_TARGET_SAMV71Q21)
+	// Wdt infinity loop protection. According to SAMV71Q21 errata, MR.ERSTL register
+	// have to be greater than 0 or else wdt may fall into infinite loop.
+	volatile Rstc_Registers *rstcRegisters = (volatile Rstc_Registers *)
+			RSTC_BASE_ADDRESS; // cppcheck-suppress[misra-c2012-11.4]
+
+	const uint8_t resetLengthSize = 0x1u;
+
+	uint32_t mr = rstcRegisters->mr;
+	mr &= ~RSTC_MR_ERSTL_MASK;
+	mr |= BIT_FIELD_VALUE(RSTC_MR_KEY, RSTC_MR_KEY_PASSWD);
+	mr |= BIT_FIELD_VALUE(RSTC_MR_ERSTL, resetLengthSize);
+	rstcRegisters->mr = mr;
+#endif // N7S_TARGET_SAMV71Q21
 }
 
 void
@@ -66,6 +79,10 @@ Wdt_getConfig(const Wdt *const wdt, Wdt_Config *const config)
 	config->isDisabled = (wdt->registers->mr & WDT_MR_WDDIS_MASK) != 0u;
 	config->isFaultInterruptEnabled =
 			(wdt->registers->mr & WDT_MR_WDFIEN_MASK) != 0u;
+#if defined(N7S_TARGET_SAMRH71F20) || defined(N7S_TARGET_SAMRH707F18)
+	config->doesFaultActivateProcessorReset =
+			(wdt->registers->mr & WDT_MR_WDRPROC_MASK) != 0u;
+#endif
 	config->isResetEnabled =
 			(wdt->registers->mr & WDT_MR_WDRSTEN_MASK) != 0u;
 	config->isHaltedOnDebug =
@@ -77,9 +94,8 @@ Wdt_getConfig(const Wdt *const wdt, Wdt_Config *const config)
 void
 Wdt_reset(Wdt *const wdt)
 {
-	wdt->registers->cr =
-			((WDT_CR_KEY << WDT_CR_KEY_OFFSET) & WDT_CR_KEY_MASK)
-			| ((1u << WDT_CR_WDRSTT_OFFSET) & WDT_CR_WDRSTT_MASK);
+	wdt->registers->cr = BIT_FIELD_VALUE(WDT_CR_KEY, WDT_CR_KEY_VALUE)
+			| BIT_FIELD_VALUE(WDT_CR_WDRSTT, 1u);
 }
 
 bool

@@ -1,7 +1,7 @@
 /**@file
- * This file is part of the ARM BSP for the Test Environment.
+ * This file is part of the N7-Core library used in the Test Environment.
  *
- * @copyright 2018-2025 N7 Space Sp. z o.o.
+ * @copyright 2023-2024 N7 Space Sp. z o.o.
  *
  * Test Environment was developed under a programme of,
  * and funded by, the European Space Agency (the "ESA").
@@ -21,6 +21,22 @@
  * limitations under the License.
  */
 
-/**
- * @defgroup Bsp Bsp
- */
+#include "ConcurrentAccessFlag.h"
+
+void
+ConcurrentAccessFlag_reset(ConcurrentAccessFlag *const self)
+{
+	__atomic_store_n(&self->flag, false, __ATOMIC_RELEASE);
+}
+
+bool
+ConcurrentAccessFlag_check(ConcurrentAccessFlag *const self)
+{
+	return __atomic_load_n(&self->flag, __ATOMIC_ACQUIRE);
+}
+
+void
+ConcurrentAccessFlag_set(ConcurrentAccessFlag *const self)
+{
+	__atomic_store_n(&self->flag, true, __ATOMIC_RELEASE);
+}

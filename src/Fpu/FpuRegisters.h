@@ -1,14 +1,14 @@
 /**@file
  * This file is part of the ARM BSP for the Test Environment.
  *
- * @copyright 2020-2021 N7 Space Sp. z o.o.
+ * @copyright 2018-2024 N7 Space Sp. z o.o.
  *
  * Test Environment was developed under a programme of,
  * and funded by, the European Space Agency (the "ESA").
  *
  *
- * Licensed under the ESA Public License (ESA-PL) Permissive,
- * Version 2.3 (the "License");
+ * Licensed under the ESA Public License (ESA-PL) Permissive (Type 3),
+ * Version 2.4 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
@@ -21,8 +21,8 @@
  * limitations under the License.
  */
 
-#ifndef BSP_FPU_REGISTERS_H
-#define BSP_FPU_REGISTERS_H
+#ifndef BSP_FPUREGISTERS_H
+#define BSP_FPUREGISTERS_H
 
 #include <stdint.h>
 
@@ -36,7 +36,6 @@ typedef struct {
 	volatile uint32_t mvfr2; ///< 0x14 Media and VFP Feature Register 2.
 } Fpu_Registers;
 
-/// \brief Structure representing FPU coprocessor control and status registers.
 typedef struct {
 	volatile uint32_t cpacr; ///< Coprocessor Access Control Register.
 } Fpu_CoprocessorRegisters;
@@ -82,11 +81,9 @@ typedef struct {
 /// \brief Lazy FP state active register mask.
 #define FPU_FPCCR_LSPACT_MASK 0x00000001u
 
-/// \brief FP register space allocated on an exception stack frame address
-/// register offset.
+/// \brief FP register space allocated on an exception stack frame address register offset.
 #define FPU_FPCAR_ADDRESS_OFFSET 3u
-/// \brief FP register space allocated on an exception stack frame address
-/// register mask.
+/// \brief FP register space allocated on an exception stack frame address register mask.
 #define FPU_FPCAR_ADDRESS_MASK 0xFFFFFFF8u
 
 /// \brief Alternative half-precision control bit default value register offset.
@@ -154,8 +151,7 @@ typedef struct {
 #define FPU_MVFR1_FP_HPFP_MASK 0x0F000000u
 /// \brief Half-precision <-> single-precision conversion supported.
 #define FPU_MVFR1_FP_HPFP_HPSP_SUPPORTED 0x01u
-/// \brief Half-precision <-> single-precision <-> double-precision conversion
-/// supported.
+/// \brief Half-precision <-> single-precision <-> double-precision conversion supported.
 #define FPU_MVFR1_FP_HPFP_HPDP_SUPPORTED 0x02u
 /// \brief Default NaN mode feature register offset.
 #define FPU_MVFR1_D_NAN_MODE_OFFSET 4u
@@ -237,4 +233,4 @@ typedef struct {
 /// \brief Invalid Operation cumulative exception bit register mask.
 #define FPU_FPSCR_IOC_MASK 0x00000001u
 
-#endif // BSP_FPU_REGISTERS_H
+#endif // BSP_FPUREGISTERS_H

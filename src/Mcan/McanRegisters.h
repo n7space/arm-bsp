@@ -1,14 +1,14 @@
 /**@file
  * This file is part of the ARM BSP for the Test Environment.
  *
- * @copyright 2020-2021 N7 Space Sp. z o.o.
+ * @copyright 2018-2024 N7 Space Sp. z o.o.
  *
  * Test Environment was developed under a programme of,
  * and funded by, the European Space Agency (the "ESA").
  *
  *
- * Licensed under the ESA Public License (ESA-PL) Permissive,
- * Version 2.3 (the "License");
+ * Licensed under the ESA Public License (ESA-PL) Permissive (Type 3),
+ * Version 2.4 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
@@ -26,86 +26,95 @@
 
 #include <stdint.h>
 
-/// \brief MCAN registers.
 typedef struct {
-	volatile uint32_t crel; ///< 0x00 Core Release Register
-	volatile uint32_t endn; ///< 0x04 Endian Register
-	volatile uint32_t cust; ///< 0x08 Customer Register
-	volatile uint32_t dbtp; ///< 0x0C Data Bit Timing and Prescaler Register
-	volatile uint32_t test; ///< 0x10 Test Register
-	volatile uint32_t rwd; ///< 0x14 RAM Watchdog Register
-	volatile uint32_t cccr; ///< 0x18 CC Control Register
-	volatile uint32_t
-			nbtp; ///< 0x1C Nominal Bit Timing and Prescaler Register
-	volatile uint32_t
-			tscc; ///< 0x20 Timestamp Counter Configuration Register
-	volatile uint32_t tscv; ///< 0x24 Timestamp Counter Value Register
-	volatile uint32_t tocc; ///< 0x28 Timeout Counter Configuration Register
-	volatile uint32_t tocv; ///< 0x2C Timeout Counter Value Register
-	volatile uint32_t reserved1[4]; ///< 0x30 - 0x3C Reserved
-	volatile uint32_t ecr; ///< 0x40 Error Counter Register
-	volatile uint32_t psr; ///< 0x44 Protocol Status Register
-	volatile uint32_t tdcr; ///< 0x48 Transmit Delay Compensation Register
-	volatile uint32_t reserved2; ///< 0x4C Reserved
-	volatile uint32_t ir; ///< 0x50 Interrupt Register
-	volatile uint32_t ie; ///< 0x54 Interrupt Enable Register
-	volatile uint32_t ils; ///< 0x58 Interrupt Line Select Register
-	volatile uint32_t ile; ///< 0x5C Interrupt Line Enable Register
-	volatile uint32_t reserved3[8]; ///< 0x60 - 0x7C Reserved
-	volatile uint32_t gfc; ///< 0x80 Global Filter Configuration Register
-	volatile uint32_t
-			sidfc; ///< 0x84 Standard ID Filter Configuration Register
-	volatile uint32_t
-			xidfc; ///< 0x88 Extended ID Filter Configuration Register
-	volatile uint32_t reserved4; ///< 0x8C Reserved
-	volatile uint32_t xidam; ///< 0x90 Extended ID AND Mask Register
-	volatile uint32_t hpms; ///< 0x94 High Priority Message Status Register
-	volatile uint32_t ndat1; ///< 0x98 New Data 1 Register
-	volatile uint32_t ndat2; ///< 0x9C New Data 2 Register
-	volatile uint32_t rxf0c; ///< 0xA0 Receive FIFO 0 Configuration Register
-	volatile uint32_t rxf0s; ///< 0xA4 Receive FIFO 0 Status Register
-	volatile uint32_t rxf0a; ///< 0xA8 Receive FIFO 0 Acknowledge Register
-	volatile uint32_t
-			rxbc; ///< 0xAC Receive Rx Buffer Configuration Register
-	volatile uint32_t rxf1c; ///< 0xB0 Receive FIFO 1 Configuration Register
-	volatile uint32_t rxf1s; ///< 0xB4 Receive FIFO 1 Status Register
-	volatile uint32_t rxf1a; ///< 0xB8 Receive FIFO 1 Acknowledge Register
-	volatile uint32_t
-			rxesc; ///< 0xBC Receive Element Size Configuration Register
-	volatile uint32_t txbc; ///< 0xC0 Transmit Buffer Configuration Register
-	volatile uint32_t txfqs; ///< 0xC4 Transmit FIFO/Queue Status Register
-	volatile uint32_t
-			txesc; ///< 0xC8 Transmit Buffer Element Size Configuration Register
-	volatile uint32_t
-			txbrp; ///< 0xCC Transmit Buffer Request Pending Register
-	volatile uint32_t txbar; ///< 0xD0 Transmit Buffer Add Request Register
-	volatile uint32_t
-			txbcr; ///< 0xD4 Transmit Buffer Cancellation Request Register
-	volatile uint32_t
-			txbto; ///< 0xD8 Transmit Buffer Transmission Occurred Register
-	volatile uint32_t
-			txbcf; ///< 0xDC Transmit Buffer Cancellation Finished Register
-	volatile uint32_t
-			txbtie; ///< 0xE0 Transmit Buffer Transmission Interrupt Enable Register
+	uint32_t crel; ///< 0x00 Core Release Register
+	uint32_t endn; ///< 0x04 Endian Register
+	uint32_t cust; ///< 0x08 Customer Register
+	uint32_t dbtp; ///< 0x0C Data Bit Timing and Prescaler Register
+	uint32_t test; ///< 0x10 Test Register
+	uint32_t rwd; ///< 0x14 RAM Watchdog Register
+	uint32_t cccr; ///< 0x18 CC Control Register
+	uint32_t nbtp; ///< 0x1C Nominal Bit Timing and Prescaler Register
+	uint32_t tscc; ///< 0x20 Timestamp Counter Configuration Register
+	uint32_t tscv; ///< 0x24 Timestamp Counter Value Register
+	uint32_t tocc; ///< 0x28 Timeout Counter Configuration Register
+	uint32_t tocv; ///< 0x2C Timeout Counter Value Register
+	uint32_t reserved1[4]; ///< 0x30 - 0x3C Reserved
+	uint32_t ecr; ///< 0x40 Error Counter Register
+	uint32_t psr; ///< 0x44 Protocol Status Register
+	uint32_t tdcr; ///< 0x48 Transmit Delay Compensation Register
+	uint32_t reserved2; ///< 0x4C Reserved
+	uint32_t ir; ///< 0x50 Interrupt Register
+	uint32_t ie; ///< 0x54 Interrupt Enable Register
+	uint32_t ils; ///< 0x58 Interrupt Line Select Register
+	uint32_t ile; ///< 0x5C Interrupt Line Enable Register
+	uint32_t reserved3[8]; ///< 0x60 - 0x7C Reserved
+	uint32_t gfc; ///< 0x80 Global Filter Configuration Register
+	uint32_t sidfc; ///< 0x84 Standard ID Filter Configuration Register
+	uint32_t xidfc; ///< 0x88 Extended ID Filter Configuration Register
+	uint32_t reserved4; ///< 0x8C Reserved
+	uint32_t xidam; ///< 0x90 Extended ID AND Mask Register
+	uint32_t hpms; ///< 0x94 High Priority Message Status Register
+	uint32_t ndat1; ///< 0x98 New Data 1 Register
+	uint32_t ndat2; ///< 0x9C New Data 2 Register
+	uint32_t rxf0c; ///< 0xA0 Receive FIFO 0 Configuration Register
+	uint32_t rxf0s; ///< 0xA4 Receive FIFO 0 Status Register
+	uint32_t rxf0a; ///< 0xA8 Receive FIFO 0 Acknowledge Register
+	uint32_t rxbc; ///< 0xAC Receive Rx Buffer Configuration Register
+	uint32_t rxf1c; ///< 0xB0 Receive FIFO 1 Configuration Register
+	uint32_t rxf1s; ///< 0xB4 Receive FIFO 1 Status Register
+	uint32_t rxf1a; ///< 0xB8 Receive FIFO 1 Acknowledge Register
+	uint32_t rxesc; ///< 0xBC Receive Element Size Configuration Register
+	uint32_t txbc; ///< 0xC0 Transmit Buffer Configuration Register
+	uint32_t txfqs; ///< 0xC4 Transmit FIFO/Queue Status Register
+	uint32_t txesc; ///< 0xC8 Transmit Buffer Element Size Configuration Register
+	uint32_t txbrp; ///< 0xCC Transmit Buffer Request Pending Register
+	uint32_t txbar; ///< 0xD0 Transmit Buffer Add Request Register
+	uint32_t txbcr; ///< 0xD4 Transmit Buffer Cancellation Request Register
+	uint32_t txbto; ///< 0xD8 Transmit Buffer Transmission Occurred Register
+	uint32_t txbcf; ///< 0xDC Transmit Buffer Cancellation Finished Register
+	uint32_t txbtie; ///< 0xE0 Transmit Buffer Transmission Interrupt Enable Register
 	/// \brief 0xE4 Transmit Buffer Cancellation Finished Interrupt Enable Register
-	volatile uint32_t txbcie;
-	volatile uint32_t reserved5[2]; ///< 0xE8 - 0xEC Reserved
-	volatile uint32_t
-			txefc; ///< 0xF0 Transmit Event FIFO Configuration Register
-	volatile uint32_t txefs; ///< 0xF4 Transmit Event FIFO Status Register
-	volatile uint32_t
-			txefa; ///< 0xF8 Transmit Event FIFO Acknowledge Register
-	volatile uint32_t reserved6; ///< 0xFC Reserved
+	uint32_t txbcie;
+	uint32_t reserved5[2]; ///< 0xE8 - 0xEC Reserved
+	uint32_t txefc; ///< 0xF0 Transmit Event FIFO Configuration Register
+	uint32_t txefs; ///< 0xF4 Transmit Event FIFO Status Register
+	uint32_t txefa; ///< 0xF8 Transmit Event FIFO Acknowledge Register
+	uint32_t reserved6; ///< 0xFC Reserved
+} Mcan_BaseRegisters;
+
+typedef struct {
+	volatile Mcan_BaseRegisters *base;
+	volatile uint32_t *canDmaBase;
 } Mcan_Registers;
 
-#define MATRIX_CCFG_CAN0_ADDR 0x40088110u
-#define MATRIX_CCFG_CAN0_CAN0DMABA_MASK 0xFFFF0000u
+#define MCAN_CHIPCFG_CANXDMABA_MASK 0xFFFF0000u
+#define MCAN_CHIPCFG_CANXDMABA_OFFSET 16u
 
-#define MATRIX_CCFG_SYSIO_ADDR 0x40088114u
-#define MATRIX_CCFG_SYSIO_CAN1DMABA_MASK 0xFFFF0000u
+#if defined(N7S_TARGET_SAMV71Q21)
+#define MCAN0_CHIPCFG_CAN_DMA_ADDRESS_BASE 0x40088110u
+#define MCAN1_CHIPCFG_CAN_DMA_ADDRESS_BASE 0x40088114u
 
 #define MCAN0_ADDRESS_BASE 0x40030000u
 #define MCAN1_ADDRESS_BASE 0x40034000u
+
+#elif defined(N7S_TARGET_SAMRH71F20)
+
+#define MCAN0_CHIPCFG_CAN_DMA_ADDRESS_BASE 0x400A00A0u
+#define MCAN1_CHIPCFG_CAN_DMA_ADDRESS_BASE 0x400A00A4u
+
+#define MCAN0_ADDRESS_BASE 0x40058000u
+#define MCAN1_ADDRESS_BASE 0x4005C000u
+
+#elif defined(N7S_TARGET_SAMRH707F18)
+
+#define MCAN0_CHIPCFG_CAN_DMA_ADDRESS_BASE 0x400A00A0u
+#define MCAN1_CHIPCFG_CAN_DMA_ADDRESS_BASE 0x400A00A4u
+
+#define MCAN0_ADDRESS_BASE 0x40058000u
+#define MCAN1_ADDRESS_BASE 0x4005C000u
+
+#endif
 
 #define MCAN_CREL_DAY_MASK 0x000000FFu
 #define MCAN_CREL_DAY_OFFSET 0u
@@ -1259,5 +1268,9 @@ typedef struct {
 #define MCAN_EXTRXFILTERELEMENT_EFID2_MASK 0x1FFFFFFFu
 #define MCAN_EXTRXFILTERELEMENT_EFID2_OFFSET 0u
 #define MCAN_EXTRXFILTERELEMENT_SIZE 8u
+
+#define MCAN_RXELEMENT_SIZE_INVALID 0xFFu
+#define MCAN_TXELEMENT_SIZE_INVALID 0xFFu
+#define MCAN_DLC_INVALID 0xF7u
 
 #endif // BSP_MCAN_REGISTERS_H

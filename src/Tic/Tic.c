@@ -1,14 +1,14 @@
 /**@file
  * This file is part of the ARM BSP for the Test Environment.
  *
- * @copyright 2020-2021 N7 Space Sp. z o.o.
+ * @copyright 2018-2025 N7 Space Sp. z o.o.
  *
  * Test Environment was developed under a programme of,
  * and funded by, the European Space Agency (the "ESA").
  *
  *
- * Licensed under the ESA Public License (ESA-PL) Permissive,
- * Version 2.3 (the "License");
+ * Licensed under the ESA Public License (ESA-PL) Permissive (Type 3),
+ * Version 2.4 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
@@ -26,59 +26,66 @@
 #include <assert.h>
 #include <string.h>
 
+#include <Utils/Bits.h>
 #include <Utils/Utils.h>
 
 #include "TicRegisters.h"
 
 void
-Tic_init(Tic *const tic, Tic_Id const id)
+Tic_init(Tic *const tic, const Tic_Id id)
 {
-	memset(tic, 0, sizeof(Tic));
+	(void)memset(tic, 0, sizeof(Tic));
 
-	tic->ticId = id;
 	switch (id) {
 	case Tic_Id_0:
-		tic->regs = (volatile Tic_Registers *)
-				TIC_SAMV71_TIC0_BASE_ADDRESS;
+		// cppcheck-suppress misra-c2012-11.4
+		tic->regs = (volatile Tic_Registers *)TIC_TIC0_BASE_ADDRESS;
 		break;
 	case Tic_Id_1:
-		tic->regs = (volatile Tic_Registers *)
-				TIC_SAMV71_TIC1_BASE_ADDRESS;
+		// cppcheck-suppress misra-c2012-11.4
+		tic->regs = (volatile Tic_Registers *)TIC_TIC1_BASE_ADDRESS;
 		break;
 	case Tic_Id_2:
-		tic->regs = (volatile Tic_Registers *)
-				TIC_SAMV71_TIC2_BASE_ADDRESS;
+		// cppcheck-suppress misra-c2012-11.4
+		tic->regs = (volatile Tic_Registers *)TIC_TIC2_BASE_ADDRESS;
 		break;
+#if defined(N7S_TARGET_SAMV71Q21) || defined(N7S_TARGET_SAMRH71F20)
 	case Tic_Id_3:
-		tic->regs = (volatile Tic_Registers *)
-				TIC_SAMV71_TIC3_BASE_ADDRESS;
+		// cppcheck-suppress misra-c2012-11.4
+		tic->regs = (volatile Tic_Registers *)TIC_TIC3_BASE_ADDRESS;
 		break;
-	default: assert(false);
+#endif
+	default: assert(false && "Bad Tic ID selected."); return;
 	}
+	tic->ticId = id;
 }
 
 void
-Tic_enableChannel(Tic *const tic, Tic_Channel const channel)
+Tic_enableChannel(Tic *const tic, const Tic_Channel channel)
 {
+	assert((channel < Tic_Channel_Count) && "Invalid TIC channel");
 	tic->regs->channelRegs[channel].ccr = TIC_CCR_CLKEN_MASK;
 }
 
 void
-Tic_disableChannel(Tic *const tic, Tic_Channel const channel)
+Tic_disableChannel(Tic *const tic, const Tic_Channel channel)
 {
+	assert((channel < Tic_Channel_Count) && "Invalid TIC channel");
 	tic->regs->channelRegs[channel].ccr = TIC_CCR_CLKDIS_MASK;
 }
 
 bool
-Tic_isChannelEnabled(const Tic *const tic, Tic_Channel const channel)
+Tic_isChannelEnabled(const Tic *const tic, const Tic_Channel channel)
 {
+	assert((channel < Tic_Channel_Count) && "Invalid TIC channel");
 	return ((tic->regs->channelRegs[channel].sr & TIC_SR_CLKSTA_MASK)
 			!= 0u);
 }
 
 void
-Tic_triggerChannel(Tic *const tic, Tic_Channel const channel)
+Tic_triggerChannel(Tic *const tic, const Tic_Channel channel)
 {
+	assert((channel < Tic_Channel_Count) && "Invalid TIC channel");
 	tic->regs->channelRegs[channel].ccr = TIC_CCR_SWTRG_MASK;
 }
 
@@ -89,98 +96,72 @@ Tic_syncAllChannels(Tic *const tic)
 }
 
 static uint32_t
-prepareCaptureModeConfig(Tic_CaptureModeConfig const config)
+prepareCaptureModeConfig(const Tic_CaptureModeConfig config)
 {
-	const uint32_t cmr = ((uint32_t)((config.isStoppedOnRbLoading ? 1u : 0u)
-					      << TIC_CMR_CAP_LDBSTOP_OFFSET)
-					     & TIC_CMR_CAP_LDBSTOP_MASK)
-			| ((uint32_t)((config.isDisabledOnRbLoading ? 1u : 0u)
-					   << TIC_CMR_CAP_LDBDIS_OFFSET)
-					& TIC_CMR_CAP_LDBDIS_MASK)
-			| (((uint32_t)config.externalTriggerEdge
-					   << TIC_CMR_CAP_ETRGEDG_OFFSET)
-					& TIC_CMR_CAP_ETRGEDG_MASK)
-			| (((uint32_t)config.triggerSource
-					   << TIC_CMR_CAP_ABETRG_OFFSET)
-					& TIC_CMR_CAP_ABETRG_MASK)
-			| ((uint32_t)((config.isTriggeredByRcCompare ? 1u : 0u)
-					   << TIC_CMR_CAP_CPCTRG_OFFSET)
-					& TIC_CMR_CAP_CPCTRG_MASK)
-			| ((0u << TIC_CMR_CAP_WAVE_OFFSET)
-					& TIC_CMR_CAP_WAVE_MASK)
-			| (((uint32_t)config.raLoadingEdgeSelection
-					   << TIC_CMR_CAP_LDRA_OFFSET)
-					& TIC_CMR_CAP_LDRA_MASK)
-			| (((uint32_t)config.rbLoadingEdgeSelection
-					   << TIC_CMR_CAP_LDRB_OFFSET)
-					& TIC_CMR_CAP_LDRB_MASK)
-			| (((uint32_t)config.loadingEdgeSubsampling
-					   << TIC_CMR_CAP_SBSMPLR_OFFSET)
-					& TIC_CMR_CAP_SBSMPLR_MASK);
+	const uint32_t cmr = BIT_VALUE(TIC_CMR_CAP_LDBSTOP,
+					     config.isStoppedOnRbLoading)
+			| BIT_VALUE(TIC_CMR_CAP_LDBDIS,
+					config.isDisabledOnRbLoading)
+			| BIT_VALUE(TIC_CMR_CAP_ETRGEDG,
+					config.externalTriggerEdge)
+			| BIT_FIELD_VALUE(TIC_CMR_CAP_ABETRG,
+					config.triggerSource)
+			| BIT_FIELD_VALUE(TIC_CMR_CAP_CPCTRG,
+					config.isTriggeredByRcCompare)
+			| BIT_VALUE(TIC_CMR_CAP_WAVE, false)
+			| BIT_FIELD_VALUE(TIC_CMR_CAP_LDRA,
+					config.raLoadingEdgeSelection)
+			| BIT_FIELD_VALUE(TIC_CMR_CAP_LDRB,
+					config.rbLoadingEdgeSelection)
+			| BIT_FIELD_VALUE(TIC_CMR_CAP_SBSMPLR,
+					config.loadingEdgeSubsampling);
 	return cmr;
 }
 
 static uint32_t
-prepareWaveformModeConfig(Tic_WaveformModeConfig const config)
+prepareWaveformModeConfig(const Tic_WaveformModeConfig config)
 {
-	const uint32_t cmr = ((uint32_t)((config.isStoppedOnRcCompare ? 1u : 0u)
-					      << TIC_CMR_WVF_CPCSTOP_OFFSET)
-					     & TIC_CMR_WVF_CPCSTOP_MASK)
-			| ((uint32_t)((config.isDisabledOnRcCompare ? 1u : 0u)
-					   << TIC_CMR_WVF_CPCDIS_OFFSET)
-					& TIC_CMR_WVF_CPCDIS_MASK)
-			| (((uint32_t)config.externalEvent
-					   << TIC_CMR_WVF_EEVTEDG_OFFSET)
-					& TIC_CMR_WVF_EEVTEDG_MASK)
-			| (((uint32_t)config.externalEventSource
-					   << TIC_CMR_WVF_EEVT_OFFSET)
-					& TIC_CMR_WVF_EEVT_MASK)
-			| (((config.isTriggeredByExternalEvent ? 1u : 0u)
-					   << TIC_CMR_WVF_ENETRG_OFFSET)
-					& TIC_CMR_WVF_ENETRG_MASK)
-			| (((uint32_t)config.waveformMode
-					   << TIC_CMR_WVF_WAVSEL_OFFSET)
-					& TIC_CMR_WVF_WAVSEL_MASK)
-			| ((1u << TIC_CMR_WVF_WAVE_OFFSET)
-					& TIC_CMR_WVF_WAVE_MASK)
-			| (((uint32_t)config.raCompareEffectOnTioa
-					   << TIC_CMR_WVF_ACPA_OFFSET)
-					& TIC_CMR_WVF_ACPA_MASK)
-			| (((uint32_t)config.rcCompareEffectOnTioa
-					   << TIC_CMR_WVF_ACPC_OFFSET)
-					& TIC_CMR_WVF_ACPC_MASK)
-			| (((uint32_t)config.externalEventEffectOnTioa
-					   << TIC_CMR_WVF_AEEVT_OFFSET)
-					& TIC_CMR_WVF_AEEVT_MASK)
-			| (((uint32_t)config.triggerEffectOnTioa
-					   << TIC_CMR_WVF_ASWTRG_OFFSET)
-					& TIC_CMR_WVF_ASWTRG_MASK)
-			| (((uint32_t)config.rbCompareEffectOnTiob
-					   << TIC_CMR_WVF_BCPB_OFFSET)
-					& TIC_CMR_WVF_BCPB_MASK)
-			| (((uint32_t)config.rcCompareEffectOnTiob
-					   << TIC_CMR_WVF_BCPC_OFFSET)
-					& TIC_CMR_WVF_BCPC_MASK)
-			| (((uint32_t)config.externalEventEffectOnTiob
-					   << TIC_CMR_WVF_BEEVT_OFFSET)
-					& TIC_CMR_WVF_BEEVT_MASK)
-			| (((uint32_t)config.triggerEffectOnTiob
-					   << TIC_CMR_WVF_BSWTRG_OFFSET)
-					& TIC_CMR_WVF_BSWTRG_MASK);
+	const uint32_t cmr = BIT_FIELD_VALUE(TIC_CMR_WVF_CPCSTOP,
+					     config.isStoppedOnRcCompare)
+			| BIT_FIELD_VALUE(TIC_CMR_WVF_CPCDIS,
+					config.isDisabledOnRcCompare)
+			| BIT_FIELD_VALUE(TIC_CMR_WVF_EEVTEDG,
+					config.externalEvent)
+			| BIT_FIELD_VALUE(TIC_CMR_WVF_EEVT,
+					config.externalEventSource)
+			| BIT_VALUE(TIC_CMR_WVF_ENETRG,
+					config.isTriggeredByExternalEvent)
+			| BIT_FIELD_VALUE(
+					TIC_CMR_WVF_WAVSEL, config.waveformMode)
+			| BIT_VALUE(TIC_CMR_WVF_WAVE, true)
+			| BIT_FIELD_VALUE(TIC_CMR_WVF_ACPA,
+					config.raCompareEffectOnTioa)
+			| BIT_FIELD_VALUE(TIC_CMR_WVF_ACPC,
+					config.rcCompareEffectOnTioa)
+			| BIT_FIELD_VALUE(TIC_CMR_WVF_AEEVT,
+					config.externalEventEffectOnTioa)
+			| BIT_FIELD_VALUE(TIC_CMR_WVF_ASWTRG,
+					config.triggerEffectOnTioa)
+			| BIT_FIELD_VALUE(TIC_CMR_WVF_BCPB,
+					config.rbCompareEffectOnTiob)
+			| BIT_FIELD_VALUE(TIC_CMR_WVF_BCPC,
+					config.rcCompareEffectOnTiob)
+			| BIT_FIELD_VALUE(TIC_CMR_WVF_BEEVT,
+					config.externalEventEffectOnTiob)
+			| BIT_FIELD_VALUE(TIC_CMR_WVF_BSWTRG,
+					config.triggerEffectOnTiob);
 	return cmr;
 }
 
-static uint32_t
-prepareCmr(const Tic_ChannelConfig *const config)
+void
+Tic_setChannelConfig(Tic *const tic, const Tic_Channel channel,
+		const Tic_ChannelConfig *const config)
 {
-	uint32_t cmr = (((uint32_t)config->clockSource
-					<< TIC_CMR_CAP_TCCLKS_OFFSET)
-				       & TIC_CMR_CAP_TCCLKS_MASK)
-			| (((config->isClockInverted ? 1u : 0u)
-					   << TIC_CMR_CAP_CLKI_OFFSET)
-					& TIC_CMR_CAP_CLKI_MASK)
-			| (((uint32_t)config->burst << TIC_CMR_CAP_BURST_OFFSET)
-					& TIC_CMR_CAP_BURST_MASK);
+	uint32_t cmr;
+
+	cmr = BIT_FIELD_VALUE(TIC_CMR_CAP_TCCLKS, config->clockSource)
+			| BIT_VALUE(TIC_CMR_CAP_CLKI, config->isClockInverted)
+			| BIT_FIELD_VALUE(TIC_CMR_CAP_BURST, config->burst);
 
 	switch (config->channelMode) {
 	case Tic_Mode_Capture:
@@ -191,76 +172,50 @@ prepareCmr(const Tic_ChannelConfig *const config)
 		cmr |= prepareWaveformModeConfig(
 				config->modeConfig.waveformModeConfig);
 		break;
+	default: assert(false && "Invalid Tic_Mode selected"); return;
 	}
 
-	return cmr;
-}
-
-static uint32_t
-prepareEmr(const Tic_ChannelConfig *const config)
-{
-	return (((uint32_t)config->triggerSourceForInputA
-				<< TIC_EMR_TRIGSRCA_OFFSET)
-			       & TIC_EMR_TRIGSRCA_MASK)
-			| (((uint32_t)config->triggerSourceForInputB
-					   << TIC_EMR_TRIGSRCB_OFFSET)
-					& TIC_EMR_TRIGSRCB_MASK)
-			| (((uint32_t)config->useUndividedPck
-					   << TIC_EMR_NODIVCLK_OFFSET)
-					& TIC_EMR_NODIVCLK_MASK);
-}
-
-static uint32_t
-prepareSmmr(const Tic_ChannelConfig *const config)
-{
-	return ((uint32_t)((config->isGrayCounterEnabled ? 1u : 0u)
-				<< TIC_SMMR_GCEN_OFFSET)
-			       & TIC_SMMR_GCEN_MASK)
-			| ((uint32_t)((config->doesGrayCounterCountDown ? 1u
-									: 0u)
-					   << TIC_SMMR_DOWN_OFFSET)
-					& TIC_SMMR_DOWN_MASK);
-}
-
-void
-Tic_setChannelConfig(Tic *const tic, Tic_Channel const channel,
-		const Tic_ChannelConfig *const config)
-{
 	if (!config->isEnabled)
 		Tic_disableChannel(tic, channel);
 
 	tic->regs->channelRegs[channel].rc =
-			(config->rc << TIC_RC_RC_OFFSET) & TIC_RC_RC_MASK;
+			BIT_FIELD_VALUE(TIC_RC_RC, config->rc);
 
-	tic->regs->channelRegs[channel].cmr = prepareCmr(config);
+	tic->regs->channelRegs[channel].cmr = cmr;
 
 	if (config->channelMode == Tic_Mode_Waveform) {
-		// Only in this mode these registers are read/write.
-		// Consequently, they have to be set after mode is set in CMR.
-		tic->regs->channelRegs[channel].ra =
-				(config->modeConfig.waveformModeConfig.ra
-						<< TIC_RA_RA_OFFSET)
-				& TIC_RA_RA_MASK;
-		tic->regs->channelRegs[channel].rb =
-				(config->modeConfig.waveformModeConfig.rb
-						<< TIC_RB_RB_OFFSET)
-				& TIC_RB_RB_MASK;
+		// Only in this mode these registers are read/write. Consequently, they have to be set after
+		// mode is set in CMR.
+		tic->regs->channelRegs[channel].ra = BIT_FIELD_VALUE(TIC_RA_RA,
+				config->modeConfig.waveformModeConfig.ra);
+		tic->regs->channelRegs[channel].rb = BIT_FIELD_VALUE(TIC_RB_RB,
+				config->modeConfig.waveformModeConfig.rb);
 	}
 
-	tic->regs->channelRegs[channel].smmr = prepareSmmr(config);
+	tic->regs->channelRegs[channel].smmr =
+			BIT_VALUE(TIC_SMMR_GCEN, config->isGrayCounterEnabled)
+			| BIT_FIELD_VALUE(TIC_SMMR_DOWN,
+					config->doesGrayCounterCountDown);
 
-	Tic_setChannelIrqConfig(tic, channel, config->irqConfig);
+	Tic_setChannelIrqConfig(tic, channel, &config->irqConfig);
 
-	tic->regs->channelRegs[channel].emr = prepareEmr(config);
+	tic->regs->channelRegs[channel].emr =
+			BIT_FIELD_VALUE(TIC_EMR_TRIGSRCA,
+					config->triggerSourceForInputA)
+			| BIT_FIELD_VALUE(TIC_EMR_TRIGSRCB,
+					config->triggerSourceForInputB)
+			| BIT_FIELD_VALUE(TIC_EMR_NODIVCLK,
+					config->useUndividedPck);
 
 	if (config->isEnabled)
 		Tic_enableChannel(tic, channel);
 }
 
 static void
-getCaptureModeConfig(const Tic *const tic, Tic_Channel const channel,
+getCaptureModeConfig(const Tic *const tic, const Tic_Channel channel,
 		Tic_ChannelConfig *const config)
 {
+	assert((channel < Tic_Channel_Count) && "Invalid TIC channel");
 	uint32_t cmr = tic->regs->channelRegs[channel].cmr;
 	Tic_CaptureModeConfig *captureConfig =
 			&config->modeConfig.captureModeConfig;
@@ -287,9 +242,10 @@ getCaptureModeConfig(const Tic *const tic, Tic_Channel const channel,
 }
 
 static void
-getWaveformModeConfig(const Tic *const tic, Tic_Channel const channel,
+getWaveformModeConfig(const Tic *const tic, const Tic_Channel channel,
 		Tic_ChannelConfig *config)
 {
+	assert((channel < Tic_Channel_Count) && "Invalid TIC channel");
 	uint32_t cmr = tic->regs->channelRegs[channel].cmr;
 	Tic_WaveformModeConfig *waveConfig =
 			&config->modeConfig.waveformModeConfig;
@@ -333,9 +289,10 @@ getWaveformModeConfig(const Tic *const tic, Tic_Channel const channel,
 }
 
 void
-Tic_getChannelConfig(const Tic *const tic, Tic_Channel const channel,
+Tic_getChannelConfig(const Tic *const tic, const Tic_Channel channel,
 		Tic_ChannelConfig *const config)
 {
+	assert((channel < Tic_Channel_Count) && "Invalid TIC channel");
 	uint32_t cmr = tic->regs->channelRegs[channel].cmr;
 
 	config->isEnabled = Tic_isChannelEnabled(tic, channel);
@@ -376,54 +333,54 @@ Tic_getChannelConfig(const Tic *const tic, Tic_Channel const channel,
 }
 
 void
-Tic_setChannelIrqConfig(Tic *const tic, Tic_Channel const channel,
-		Tic_ChannelIrqConfig const config)
+Tic_setChannelIrqConfig(Tic *const tic, const Tic_Channel channel,
+		const Tic_ChannelIrqConfig *const config)
 {
-	config.isCounterOverflowIrqEnabled
+	config->isCounterOverflowIrqEnabled
 			? Tic_enableChannelIrq(
-					tic, channel, Tic_Irq_CounterOverflow)
-			: Tic_disableChannelIrq(
-					tic, channel, Tic_Irq_CounterOverflow);
+					  tic, channel, Tic_Irq_CounterOverflow)
+			: Tic_disableChannelIrq(tic, channel,
+					  Tic_Irq_CounterOverflow);
 
-	config.isLoadOverrunIrqEnabled ? Tic_enableChannelIrq(
-			tic, channel, Tic_Irq_LoadOverrun)
-				       : Tic_disableChannelIrq(tic, channel,
-						       Tic_Irq_LoadOverrun);
+	config->isLoadOverrunIrqEnabled ? Tic_enableChannelIrq(tic, channel,
+							  Tic_Irq_LoadOverrun)
+					: Tic_disableChannelIrq(tic, channel,
+							  Tic_Irq_LoadOverrun);
 
-	config.isRaCompareIrqEnabled
+	config->isRaCompareIrqEnabled
 			? Tic_enableChannelIrq(tic, channel, Tic_Irq_RaCompare)
 			: Tic_disableChannelIrq(
-					tic, channel, Tic_Irq_RaCompare);
+					  tic, channel, Tic_Irq_RaCompare);
 
-	config.isRbCompareIrqEnabled
+	config->isRbCompareIrqEnabled
 			? Tic_enableChannelIrq(tic, channel, Tic_Irq_RbCompare)
 			: Tic_disableChannelIrq(
-					tic, channel, Tic_Irq_RbCompare);
+					  tic, channel, Tic_Irq_RbCompare);
 
-	config.isRcCompareIrqEnabled
+	config->isRcCompareIrqEnabled
 			? Tic_enableChannelIrq(tic, channel, Tic_Irq_RcCompare)
 			: Tic_disableChannelIrq(
-					tic, channel, Tic_Irq_RcCompare);
+					  tic, channel, Tic_Irq_RcCompare);
 
-	config.isRaLoadingIrqEnabled
+	config->isRaLoadingIrqEnabled
 			? Tic_enableChannelIrq(tic, channel, Tic_Irq_RaLoading)
 			: Tic_disableChannelIrq(
-					tic, channel, Tic_Irq_RaLoading);
+					  tic, channel, Tic_Irq_RaLoading);
 
-	config.isRbLoadingIrqEnabled
+	config->isRbLoadingIrqEnabled
 			? Tic_enableChannelIrq(tic, channel, Tic_Irq_RbLoading)
 			: Tic_disableChannelIrq(
-					tic, channel, Tic_Irq_RbLoading);
+					  tic, channel, Tic_Irq_RbLoading);
 
-	config.isExternalTriggerIrqEnabled
+	config->isExternalTriggerIrqEnabled
 			? Tic_enableChannelIrq(
-					tic, channel, Tic_Irq_ExternalTrigger)
-			: Tic_disableChannelIrq(
-					tic, channel, Tic_Irq_ExternalTrigger);
+					  tic, channel, Tic_Irq_ExternalTrigger)
+			: Tic_disableChannelIrq(tic, channel,
+					  Tic_Irq_ExternalTrigger);
 }
 
 void
-Tic_getChannelIrqConfig(const Tic *const tic, Tic_Channel const channel,
+Tic_getChannelIrqConfig(const Tic *const tic, const Tic_Channel channel,
 		Tic_ChannelIrqConfig *const config)
 {
 	config->isCounterOverflowIrqEnabled = Tic_isChannelIrqEnabled(
@@ -446,30 +403,34 @@ Tic_getChannelIrqConfig(const Tic *const tic, Tic_Channel const channel,
 
 void
 Tic_enableChannelIrq(
-		Tic *const tic, Tic_Channel const channel, Tic_Irq const irq)
+		Tic *const tic, const Tic_Channel channel, const Tic_Irq irq)
 {
+	assert((channel < Tic_Channel_Count) && "Invalid TIC channel");
 	tic->regs->channelRegs[channel].ier |= (1u << (uint32_t)irq);
 }
 
 void
 Tic_disableChannelIrq(
-		Tic *const tic, Tic_Channel const channel, Tic_Irq const irq)
+		Tic *const tic, const Tic_Channel channel, const Tic_Irq irq)
 {
+	assert((channel < Tic_Channel_Count) && "Invalid TIC channel");
 	tic->regs->channelRegs[channel].idr |= (1u << (uint32_t)irq);
 }
 
 bool
-Tic_isChannelIrqEnabled(const Tic *const tic, Tic_Channel const channel,
-		Tic_Irq const irq)
+Tic_isChannelIrqEnabled(const Tic *const tic, const Tic_Channel channel,
+		const Tic_Irq irq)
 {
+	assert((channel < Tic_Channel_Count) && "Invalid TIC channel");
 	return ((tic->regs->channelRegs[channel].imr & (1u << (uint32_t)irq))
 			!= 0u);
 }
 
 void
-Tic_getChannelStatus(const Tic *const tic, Tic_Channel const channel,
+Tic_getChannelStatus(const Tic *const tic, const Tic_Channel channel,
 		Tic_ChannelStatus *const status)
 {
+	assert((channel < Tic_Channel_Count) && "Invalid TIC channel");
 	const uint32_t regValue = tic->regs->channelRegs[channel].sr;
 
 	status->hasCounterOverflowed = (regValue & TIC_SR_COVFS_MASK) != 0u;
@@ -487,26 +448,25 @@ Tic_getChannelStatus(const Tic *const tic, Tic_Channel const channel,
 }
 
 uint32_t
-Tic_getCounterValue(const Tic *const tic, Tic_Channel const channel)
+Tic_getCounterValue(const Tic *const tic, const Tic_Channel channel)
 {
+	assert((channel < Tic_Channel_Count) && "Invalid TIC channel");
 	return tic->regs->channelRegs[channel].cv;
 }
 
 void
 Tic_configureExternalClockSignals(Tic *const tic,
-		Tic_ExternalClockSignalSelection const externalClockSignals)
+		const Tic_ExternalClockSignalSelection
+				*const externalClockSignals)
 {
 	uint32_t bmr = tic->regs->bmr;
-	bmr &= (uint32_t) ~(TIC_BMR_TC0XC0S_MASK | TIC_BMR_TC1XC1S_MASK
+	bmr &= (uint32_t)~(TIC_BMR_TC0XC0S_MASK | TIC_BMR_TC1XC1S_MASK
 			| TIC_BMR_TC2XC2S_MASK);
-	bmr |= (((uint32_t)externalClockSignals.xc0 << TIC_BMR_TC0XC0S_OFFSET)
-			       & TIC_BMR_TC0XC0S_MASK)
-			| (((uint32_t)externalClockSignals.xc1
-					   << TIC_BMR_TC1XC1S_OFFSET)
-					& TIC_BMR_TC1XC1S_MASK)
-			| (((uint32_t)externalClockSignals.xc2
-					   << TIC_BMR_TC2XC2S_OFFSET)
-					& TIC_BMR_TC2XC2S_MASK);
+	bmr |= BIT_FIELD_VALUE(TIC_BMR_TC0XC0S, externalClockSignals->xc0)
+			| BIT_FIELD_VALUE(TIC_BMR_TC1XC1S,
+					externalClockSignals->xc1)
+			| BIT_FIELD_VALUE(TIC_BMR_TC2XC2S,
+					externalClockSignals->xc2);
 	tic->regs->bmr = bmr;
 }
 
@@ -518,11 +478,9 @@ Tic_writeProtect(Tic *const tic, bool protect)
 			!= 0u);
 
 	Tic_enableChannel(tic, Tic_Channel_0);
-	tic->regs->wpmr =
-			((TIC_WPMR_WPKEY_PASSWD_VALUE << TIC_WPMR_WPKEY_OFFSET)
-					& TIC_WPMR_WPKEY_MASK)
-			| (((protect ? 1u : 0u) << TIC_WPMR_WPEN_OFFSET)
-					& TIC_WPMR_WPEN_MASK);
+	tic->regs->wpmr = BIT_FIELD_VALUE(TIC_WPMR_WPKEY,
+					  TIC_WPMR_WPKEY_PASSWD_VALUE)
+			| BIT_VALUE(TIC_WPMR_WPEN, protect);
 
 	if (!clksta)
 		Tic_disableChannel(tic, Tic_Channel_0);
@@ -531,6 +489,7 @@ Tic_writeProtect(Tic *const tic, bool protect)
 uint32_t
 Tic_getRaValue(const Tic *const tic, const Tic_Channel channel)
 {
+	assert((channel < Tic_Channel_Count) && "Invalid TIC channel");
 	return (tic->regs->channelRegs[channel].ra & TIC_RA_RA_MASK)
 			>> TIC_RA_RA_OFFSET;
 }
@@ -538,6 +497,7 @@ Tic_getRaValue(const Tic *const tic, const Tic_Channel channel)
 uint32_t
 Tic_getRbValue(const Tic *const tic, const Tic_Channel channel)
 {
+	assert((channel < Tic_Channel_Count) && "Invalid TIC channel");
 	return (tic->regs->channelRegs[channel].rb & TIC_RB_RB_MASK)
 			>> TIC_RB_RB_OFFSET;
 }
@@ -545,6 +505,7 @@ Tic_getRbValue(const Tic *const tic, const Tic_Channel channel)
 uint32_t
 Tic_getRcValue(const Tic *const tic, const Tic_Channel channel)
 {
+	assert((channel < Tic_Channel_Count) && "Invalid TIC channel");
 	return (tic->regs->channelRegs[channel].rc & TIC_RC_RC_MASK)
 			>> TIC_RC_RC_OFFSET;
 }
