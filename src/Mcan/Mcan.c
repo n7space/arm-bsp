@@ -31,7 +31,7 @@
 #include <Utils/ErrorCode.h>
 #include <Utils/Utils.h>
 
-#include <bsp/arm/Scb/Scb.h>
+#include <Scb/Scb.h>
 
 Mcan_Registers
 Mcan_getDeviceRegisters(const Mcan_Id id)

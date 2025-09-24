@@ -27,7 +27,7 @@
 
 #include <Utils/Bits.h>
 
-#include <bsp/arm/Scb/Scb.h>
+#include <Scb/Scb.h>
 
 #define MPU_REGIONS_COUNT 16u
 

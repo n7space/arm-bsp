@@ -26,8 +26,8 @@
 #include <Utils/Bits.h>
 
 #if defined(N7S_TARGET_SAMV71Q21)
-#include <bsp/arm/Rstc/Rstc.h>
-#include <bsp/arm/Rstc/RstcRegisters.h>
+#include <Rstc/Rstc.h>
+#include <Rstc/RstcRegisters.h>
 #endif // N7S_TARGET_SAMV71Q21
 
 void
