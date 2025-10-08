@@ -26,6 +26,8 @@
 #include <assert.h>
 #include <string.h>
 
+#include <Utils/ErrorCode.h>
+
 #define UART_BAUDRATE_BASE_SCALER 16u
 
 static inline void
