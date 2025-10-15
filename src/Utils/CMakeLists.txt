@@ -3,8 +3,17 @@ project(Samv71Utils VERSION 1.0.0 LANGUAGES C)
 add_library(Samv71Utils STATIC)
 target_sources(Samv71Utils
     PRIVATE     ByteFifo.c
+                ByteBuffer.c
+                ConcurrentAccessFlag.c
+                StructFifo.c
+                Utils.c
     PUBLIC      ByteFifo.h
-                Utils.h)
+                Utils.h
+                Bits.h
+                ByteBuffer.h
+                ConcurrentAccessFlag.h
+                ErrorCode.h
+                StructFifo.h)
 target_include_directories(Samv71Utils
     PUBLIC      ..)
 target_link_libraries(Samv71Utils
