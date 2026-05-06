@@ -147,7 +147,7 @@ Uart_getConfig(const Uart *const uart, Uart_Config *const config)
 
 bool
 Uart_write(Uart *const uart, const uint8_t data, uint32_t const timeoutLimit,
-		int *const errCode)
+		ErrorCode *const errCode)
 {
 	uint32_t timeout = timeoutLimit;
 	while (((uart->reg->sr & UART_SR_TXRDY_MASK) == 0u) && (timeout > 0u))
@@ -163,7 +163,7 @@ Uart_write(Uart *const uart, const uint8_t data, uint32_t const timeoutLimit,
 
 bool
 Uart_read(Uart *const uart, uint8_t *const data, uint32_t timeoutLimit,
-		int *const errCode)
+		ErrorCode *const errCode)
 {
 	uint32_t timeout = timeoutLimit;
 	while (((uart->reg->sr & UART_SR_RXRDY_MASK) == 0u) && (timeout > 0u))
@@ -271,7 +271,7 @@ Uart_getRxFifoCount(Uart *const uart)
 }
 
 static inline bool
-handleRxInterrupt(Uart *const uart, int* const errCode)
+handleRxInterrupt(Uart *const uart, ErrorCode* const errCode)
 {
 	uint8_t data = (uint8_t)uart->reg->rhr;
 
@@ -331,7 +331,7 @@ Uart_hasAnyErrorOccured(Uart_ErrorFlags* const errFlags)
 void
 Uart_handleInterrupt(Uart *const uart)
 {
-	int errorCode = 0;
+	ErrorCode errorCode = 0;
 	Uart_ErrorFlags errorFlags = { false, false, false, false };
 
 	uint32_t status = uart->reg->sr & uart->reg->imr;
