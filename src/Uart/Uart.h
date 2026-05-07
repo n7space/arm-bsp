@@ -34,6 +34,7 @@
 
 #include <Utils/ByteFifo.h>
 #include <Utils/Utils.h>
+#include <Utils/ErrorCode.h>
 
 #include "UartRegisters.h"
 
@@ -185,7 +186,7 @@ bool Uart_isDataAvailable(const Uart *const uart);
 /// \retval true Sending was successful.
 /// \retval false Sending timed out.
 bool Uart_write(Uart *const uart, const uint8_t data, uint32_t timeoutLimit,
-		int *const errCode);
+		ErrorCode *const errCode);
 
 /// \brief Synchronously receives a byte over Uart.
 /// \param [in] uart Uart device descriptor.
@@ -195,7 +196,7 @@ bool Uart_write(Uart *const uart, const uint8_t data, uint32_t timeoutLimit,
 /// \retval true Reception was successful.
 /// \retval false Reception timed out.
 bool Uart_read(Uart *const uart, uint8_t *const data, uint32_t timeoutLimit,
-		int *const errCode);
+		ErrorCode *const errCode);
 
 /// \brief Asynchronously sends a series of bytes over Uart.
 /// \param [in] uart Uart device descriptor.
