@@ -55,6 +55,15 @@ enum {
 	ErrorCode_NoError = 0u
 };
 
+/// \brief Sets error code if output variable is not NULL.
+/// \param [out] errCode pointer to store error code to, can be \c NULL.
+/// \param [in] generatedError error code to be set.
+static inline void setErrorCode(ErrorCode* const errCode, const ErrorCode generatedError)
+{
+  if (errCode != NULL)
+    *errCode = generatedError;
+}
+
 /// \brief Simplifies writing functions returning boolean and providing optional error code.
 /// \details Example:
 /// \code
