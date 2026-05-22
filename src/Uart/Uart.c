@@ -66,13 +66,11 @@ static uintptr_t addressBase(const Uart_Id id)
 void Uart_init(const Uart_Id id, Uart* const uart)
 {
   assert(uart != NULL);
-  // cppcheck-suppress [misra-c2012-17.7]
   memset(uart, 0, sizeof(Uart));
 
   uart->id = id;
 
   const uintptr_t registersAddress = addressBase(id);
-  // cppcheck-suppress misra-c2012-11.4
   uart->registers = (Uart_Registers*)registersAddress;
 }
 
@@ -236,7 +234,6 @@ void Uart_readRxFifo(Uart* const uart, ByteFifo* const fifo)
     }
     exitCriticalSection(uart, state);
 
-    // cppcheck-suppress[misra-c2012-17.7]
     ByteFifo_push(fifo, data);
   }
 }
@@ -359,13 +356,11 @@ bool Uart_handleInterrupt(Uart* const uart, ErrorCode* const errCode)
 
 void* Uart_getDmaWriteAddress(Uart* const uart)
 {
-  // cppcheck-suppress misra-c2012-11.4
   return (void*)(uintptr_t)&(uart->registers->thr);
 }
 
 void* Uart_getDmaReadAddress(Uart* const uart)
 {
-  // cppcheck-suppress misra-c2012-11.4
   return (void*)(uintptr_t)&(uart->registers->rhr);
 }
 
